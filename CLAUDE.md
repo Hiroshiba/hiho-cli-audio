@@ -56,13 +56,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Python 3.9+の組み込み型を使用（`typing.List` → `list`, `typing.Dict` → `dict`, `typing.Tuple` → `tuple`, `typing.Set` → `set`）
 - Python 3.10+のUnion型記法を使用（`typing.Union[str, None]` → `str | None`, `typing.Optional[str]` → `str | None`）
 - `os.path` ではなく `pathlib.Path` を使用
-- `Path.open()` ではなく `Path.read_text()` / `Path.read_bytes()` を使用
+- `Path.open()` ではなく `Path.read_text()` / `Path.read_bytes()` を使用（ファイル読み書きは可能な限り`Path`のメソッドを使用）
 
 ### 一般的な規約
 - 関数・クラスには1行のdocstringを記述
 - 変数名・関数名から自明なコメントは書かない
-- 関数の引数にはデフォルト値を設定しない
+- 関数の引数にはデフォルト値を設定しない（設定ファイルのデフォルト値は例外）
 - 型ヒントを必須とする
+- **型サポートを極力活用する**
+  - `dict`や`list`などの抽象的な型を避け、具体的な型を使用
+  - 戻り値には`dict`ではなくデータクラスやPydanticモデルを使用
+  - 型安全性を最大限に活用してバグを防止
 - null・空文字・-1に特別な意味を持たせない
 - **コメントは必ず日本語で記述する**（pyproject.tomlの設定コメント含む）
 
@@ -130,7 +134,8 @@ hiho-cli-audio/
 │   ├── __init__.py
 │   ├── config.py          # 設定ファイル管理
 │   ├── audio.py           # 音声録音機能
-│   └── gemini.py          # Gemini API連携
+│   ├── gemini.py          # Gemini API連携
+│   └── types.py           # 型定義
 ├── pyproject.toml         # プロジェクト設定
 ├── .python-version        # Python 3.11指定
 └── uv.lock               # 依存関係ロック
