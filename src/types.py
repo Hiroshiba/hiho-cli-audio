@@ -1,6 +1,9 @@
 """型定義モジュール"""
 
 from dataclasses import dataclass
+from typing import Literal
+
+import numpy as np
 
 
 @dataclass
@@ -18,3 +21,6 @@ class TranscriptionResult:
 
     text: str
     cost_info: CostInfo
+
+
+RecordingResult = np.ndarray | Literal["MAX_DURATION_EXCEEDED"]

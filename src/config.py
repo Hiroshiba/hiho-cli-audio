@@ -11,6 +11,7 @@ class AudioConfig(BaseModel):
 
     sample_rate: int = Field(default=16000, description="サンプリングレート")
     channels: int = Field(default=1, description="チャンネル数")
+    max_duration: int = Field(default=180, description="最大録音時間（秒）")
 
 
 class HotkeyConfig(BaseModel):

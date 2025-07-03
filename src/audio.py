@@ -1,6 +1,7 @@
 """音声録音モジュール"""
 
 import queue
+import time
 from collections.abc import Callable
 
 import numpy as np
@@ -8,6 +9,7 @@ import sounddevice as sd
 import typer
 
 from .config import Config
+from .types import RecordingResult
 
 
 class AudioRecorder:
@@ -17,9 +19,10 @@ class AudioRecorder:
         self.config = config.audio
         self.audio_queue: queue.Queue[np.ndarray] = queue.Queue()
 
-    def record_with_control(self, stop_flag_ref: Callable[[], bool]) -> np.ndarray:
-        """停止フラグを参照しながらリアルタイム録音"""
+    def record_with_control(self, stop_flag_ref: Callable[[], bool]) -> RecordingResult:
+        """停止フラグを参照しながらリアルタイム録音（最大時間制限付き）"""
         recorded_data: list[np.ndarray] = []
+        start_time = time.time()
 
         def audio_callback(
             indata: np.ndarray, _frames: int, _time_info, status
@@ -37,6 +40,13 @@ class AudioRecorder:
                 blocksize=int(self.config.sample_rate * 0.1),
             ):
                 while not stop_flag_ref():
+                    elapsed_time = time.time() - start_time
+                    if elapsed_time >= self.config.max_duration:
+                        typer.echo(
+                            f"⏰ 最大録音時間（{self.config.max_duration}秒）に達しました。録音を強制終了します。"
+                        )
+                        return "MAX_DURATION_EXCEEDED"
+
                     try:
                         data = self.audio_queue.get(timeout=0.1)
                         recorded_data.append(data)

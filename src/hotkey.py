@@ -69,6 +69,10 @@ class HotkeyDaemon:
 
             self.recording = False
 
+            if audio_data == "MAX_DURATION_EXCEEDED":
+                typer.echo("⚠️  最大録音時間を超過したため、音声認識を行いません")
+                return
+
             typer.echo("🔄 音声認識中...")
 
             result = self.client.transcribe(audio_data)
