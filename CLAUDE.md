@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## プロジェクト概要
 
-このプロジェクトは、Gemini音声認識APIを利用したMac/Windows対応のCLIアプリケーションです。ショートカットキーで起動し、マイク音声を文字起こししてクリップボードにコピーする機能を提供します。
+このプロジェクトは、Gemini音声認識APIを利用したMac/Windows対応のCLIアプリケーションです。ホットキー（Ctrl+Shift+D）によるトリガーでマイク音声の録音開始/停止を制御し、リアルタイムで文字起こしを行い、結果をクリップボードに自動コピーするデーモン型アプリケーションです。
 
 ## 開発環境とツール
 
@@ -27,7 +27,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **sounddevice**: 音声録音・再生ライブラリ
 - **pyperclip**: クリップボード操作ライブラリ
 - **pyyaml**: YAML設定ファイル読み込み
-- **pynput**: キーボード・マウス入力監視（ショートカットキー）
+- **pynput**: グローバルホットキー監視ライブラリ（Ctrl+Shift+D検知）
 - **numpy**: 音声データ処理
 
 ## アーキテクチャ設計指針
@@ -36,13 +36,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 設定ファイルは `~/.config/hiho-cli-audio/config.yaml` に配置
 - Pydanticモデルで設定値をバリデーション
 - API キーなどの機密情報は環境変数ではなく設定ファイルで管理
+- ホットキー設定（デフォルト: Ctrl+Shift+D）の変更可能
 
 ### 音声処理フロー
-1. ショートカットキー検知によるトリガー
-2. マイク音声の収集
-3. Gemini API への音声データ送信
-4. 認識結果のクリップボードへのコピー
-5. トークン使用量のログ出力
+1. デーモンプロセスによるホットキー（Ctrl+Shift+D）監視
+2. ホットキー押下による録音開始/停止のトグル制御
+3. リアルタイム音声データの収集と蓄積
+4. 録音停止時のGemini API への音声データ送信
+5. 認識結果のクリップボードへの自動コピー
+6. トークン使用量のログ出力
 
 ### エラー処理戦略
 - 想定外の挙動では例外を投げる
@@ -110,9 +112,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 外部システム連携
 
 ### OS統合
-- クリップボード操作: 各OSの標準API使用
-- ショートカットキー: OS標準機能またはユーティリティで設定
+- クリップボード操作: 各OSの標準API使用（pyperclip）
+- ホットキー: pynputによるグローバルホットキー監視
 - デーモン化: バックグラウンドプロセスとして常駐
+- シグナルハンドラー: Ctrl+Cによる安全な終了処理
 
 ### API統合
 - Gemini音声認識API
@@ -136,6 +139,7 @@ hiho-cli-audio/
 │   ├── config.py          # 設定ファイル管理
 │   ├── audio.py           # 音声録音機能
 │   ├── gemini.py          # Gemini API連携
+│   ├── hotkey.py          # ホットキー監視・デーモン機能
 │   └── types.py           # 型定義
 ├── pyproject.toml         # プロジェクト設定
 ├── .python-version        # Python 3.11指定
@@ -145,8 +149,10 @@ hiho-cli-audio/
 ## 開発時の注意点
 
 - 単一ユーザー用途での設計（設定ファイルはホームディレクトリ配下）
+- デーモンプロセスによるバックグラウンド常駐型アプリケーション
 - 起動から待機状態まで5秒以内のパフォーマンス要件  
 - macOS（最新2バージョン）とWindows 10/11の両対応が必要
+- ホットキー監視によるCPU使用率の最小化
 
 ## 実行方法
 
@@ -157,7 +163,8 @@ uv sync
 
 # アプリケーション実行
 uv run python main.py --help
-uv run python main.py record
+uv run python main.py daemon    # デーモンモードでホットキー監視開始
+uv run python main.py config    # 設定ファイルの場所を表示
 ```
 
 ### 開発ツール
