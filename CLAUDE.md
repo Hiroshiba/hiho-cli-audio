@@ -175,18 +175,14 @@ uv run python -m hiho_cli_audio.main config    # 設定ファイルの場所を�
 
 ### uvxを使った実行
 ```bash
-# 一度だけ実行（エフェメラル環境）
-uvx --from git+https://github.com/ユーザー名/hiho-cli-audio hiho-cli-audio config
+# デーモンモードで実行
+uvx git+https://github.com/Hiroshiba/hiho-cli-audio daemon
 
-# ローカルからツールとしてインストール
-uv tool install .
+# 設定ファイルの場所を表示
+uvx git+https://github.com/Hiroshiba/hiho-cli-audio config
 
-# インストール後の実行
-uvx hiho-cli-audio daemon
-uvx hiho-cli-audio config
-
-# アンインストール
-uv tool uninstall hiho-cli-audio
+# ヘルプを表示
+uvx git+https://github.com/Hiroshiba/hiho-cli-audio --help
 ```
 
 ### 重要な注意点
@@ -209,3 +205,12 @@ uv run ruff format .
 # 自動修正
 uv run ruff check --fix .
 ```
+
+## README.md メンテナンス方針
+
+README.mdは以下の方針で簡潔に維持する：
+- **使用者向けの必要最小限の情報のみ記載**
+- **長ったらしい説明や重複する内容は削除**
+- **UVXでの起動方法を中心とした構成**
+- **技術的詳細は開発環境セクションにとどめる**
+- **GitHubでよく見るシンプルな形式を保持**

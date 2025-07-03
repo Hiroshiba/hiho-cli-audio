@@ -18,9 +18,15 @@ def daemon():
 
 @app.command()
 def config():
-    """設定ファイルの場所を表示"""
+    """設定ファイルの場所を表示（存在しない場合は作成）"""
     config_path = Config.get_config_path()
-    typer.echo(f"設定ファイル: {config_path}")
+    
+    if not config_path.exists():
+        Config._create_default_config(config_path)
+        typer.echo(f"設定ファイルを作成しました: {config_path}")
+        typer.echo("Gemini APIキーを設定してください。")
+    else:
+        typer.echo(f"設定ファイル: {config_path}")
 
 
 if __name__ == "__main__":
