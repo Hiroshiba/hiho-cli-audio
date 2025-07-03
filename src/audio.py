@@ -1,7 +1,6 @@
 """音声録音モジュール"""
 
 import queue
-import time
 from collections.abc import Callable
 
 import numpy as np
@@ -37,10 +36,7 @@ class AudioRecorder:
                 callback=audio_callback,
                 blocksize=int(self.config.sample_rate * 0.1),
             ):
-                start_time = time.time()
-                max_duration = self.config.duration
-
-                while not stop_flag_ref() and (time.time() - start_time) < max_duration:
+                while not stop_flag_ref():
                     try:
                         data = self.audio_queue.get(timeout=0.1)
                         recorded_data.append(data)
@@ -63,21 +59,3 @@ class AudioRecorder:
 
         combined_data = np.concatenate(recorded_data, axis=0)
         return combined_data.flatten()
-
-    def record(self) -> np.ndarray:
-        """従来の固定時間録音（互換性維持）"""
-        record_duration = self.config.duration
-
-        audio_data = sd.rec(
-            frames=record_duration * self.config.sample_rate,
-            samplerate=self.config.sample_rate,
-            channels=self.config.channels,
-            dtype=np.float32,
-        )
-
-        sd.wait()
-        return audio_data.flatten()
-
-    def get_available_devices(self) -> sd.DeviceList | dict:
-        """利用可能な音声デバイス一覧を取得"""
-        return sd.query_devices()
