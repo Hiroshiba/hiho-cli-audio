@@ -9,7 +9,7 @@ import pyperclip
 import typer
 from pynput import keyboard
 
-from .audio import AudioRecorder
+from .audio import AudioRecorder, print_audio_devices
 from .config import Config
 from .gemini import GeminiClient
 
@@ -69,7 +69,7 @@ class HotkeyDaemon:
 
             self.recording = False
 
-            if audio_data == "MAX_DURATION_EXCEEDED":
+            if isinstance(audio_data, str) and audio_data == "MAX_DURATION_EXCEEDED":
                 typer.echo("⚠️  最大録音時間を超過したため、音声認識を行いません")
                 return
 
@@ -104,6 +104,9 @@ class HotkeyDaemon:
         typer.echo("\n📌 ショートカットキー:")
         typer.echo(f"   {self.config.hotkey.record_toggle}: 録音開始/停止")
         typer.echo("   Ctrl+C: デーモン終了")
+
+        print_audio_devices()
+
         typer.echo("\n⏳ ホットキー待機中...")
 
         try:
