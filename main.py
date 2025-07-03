@@ -5,6 +5,7 @@ import typer
 from src.audio import AudioRecorder
 from src.config import Config
 from src.gemini import GeminiClient
+from src.hotkey import HotkeyDaemon
 
 app = typer.Typer(help="Gemini音声認識CLIアプリケーション")
 
@@ -30,6 +31,14 @@ def record():
     typer.echo(f"プロンプト使用トークン: {cost.prompt_tokens} トークン")
     typer.echo(f"出力使用トークン: {cost.output_tokens} トークン")
     typer.echo(f"推定コスト: ${cost.cost_usd:.6f} USD")
+
+
+@app.command()
+def daemon():
+    """デーモンモードでホットキー監視を開始"""
+    config = Config.load()
+    daemon = HotkeyDaemon(config)
+    daemon.run_daemon()
 
 
 @app.command()

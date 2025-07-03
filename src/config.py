@@ -14,6 +14,13 @@ class AudioConfig(BaseModel):
     duration: int = Field(default=10, description="録音時間（秒）")
 
 
+class HotkeyConfig(BaseModel):
+    """ホットキー設定"""
+
+    record_toggle: str = Field(default="<ctrl>+<shift>+d", description="録音開始/停止")
+    record_stop: str = Field(default="<ctrl>+<shift>+d", description="録音強制停止")
+
+
 class GeminiConfig(BaseModel):
     """Gemini API設定"""
 
@@ -31,6 +38,7 @@ class Config(BaseModel):
     """アプリケーション設定"""
 
     audio: AudioConfig = Field(default_factory=AudioConfig)
+    hotkey: HotkeyConfig = Field(default_factory=HotkeyConfig)
     gemini: GeminiConfig
 
     @classmethod
@@ -62,6 +70,7 @@ class Config(BaseModel):
 
         # NOTE: 型サポートを受けるためにPydanticモデルを使用してデフォルト設定を作成
         default_audio = AudioConfig()
+        default_hotkey = HotkeyConfig()
         default_gemini = {
             "api_key": "YOUR_GEMINI_API_KEY_HERE",
             "model": "gemini-2.5-pro",
@@ -69,8 +78,11 @@ class Config(BaseModel):
 
         default_config = {
             "audio": default_audio.model_dump(),
+            "hotkey": default_hotkey.model_dump(),
             "gemini": default_gemini,
         }
 
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(default_config, f, default_flow_style=False, allow_unicode=True)
+        yaml_content = yaml.dump(
+            default_config, default_flow_style=False, allow_unicode=True
+        )
+        config_path.write_text(yaml_content, encoding="utf-8")
