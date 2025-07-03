@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 
+import pyperclip
 import typer
 from pynput import keyboard
 
@@ -73,6 +74,10 @@ class HotkeyDaemon:
             result = self.client.transcribe(audio_data)
 
             typer.echo(f"📝 認識結果: {result.text}")
+
+            # クリップボードにコピー
+            pyperclip.copy(result.text)
+            typer.echo("📋 クリップボードにコピーしました")
 
             cost = result.cost_info
             typer.echo("💰 === コスト情報 ===")
