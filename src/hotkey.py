@@ -4,7 +4,6 @@ import signal
 import sys
 import threading
 import time
-from typing import Any
 
 import typer
 from pynput import keyboard
@@ -32,7 +31,7 @@ class HotkeyDaemon:
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
-    def _signal_handler(self, signum: int, frame: Any) -> None:
+    def _signal_handler(self, signum: int, frame: object) -> None:
         typer.echo(f"\n📡 シグナル {signum} を受信しました。終了します。")
         self.stop_daemon()
 
@@ -42,13 +41,6 @@ class HotkeyDaemon:
             self._start_recording()
         else:
             self._stop_recording()
-
-    def force_stop_recording(self) -> None:
-        """録音を強制停止"""
-        if self.recording:
-            self._stop_recording()
-        else:
-            typer.echo("📭 録音は実行されていません")
 
     def _start_recording(self) -> None:
         if self.recording:
@@ -93,19 +85,15 @@ class HotkeyDaemon:
             typer.echo(f"❌ 録音・認識中にエラーが発生しました: {e}")
 
     def _setup_hotkeys(self) -> keyboard.GlobalHotKeys:
-        hotkey_config = {
-            self.config.hotkey.record_toggle: self.toggle_recording,
-            self.config.hotkey.record_stop: self.force_stop_recording,
-        }
-
-        return keyboard.GlobalHotKeys(hotkey_config)
+        return keyboard.GlobalHotKeys(
+            {self.config.hotkey.record_toggle: self.toggle_recording}
+        )
 
     def run_daemon(self) -> None:
         """デーモンプロセスとして実行"""
         typer.echo("🎙️  音声録音CLIデーモンが開始されました")
         typer.echo("\n📌 ショートカットキー:")
         typer.echo(f"   {self.config.hotkey.record_toggle}: 録音開始/停止")
-        typer.echo(f"   {self.config.hotkey.record_stop}: 録音強制停止")
         typer.echo("   Ctrl+C: デーモン終了")
         typer.echo("\n⏳ ホットキー待機中...")
 

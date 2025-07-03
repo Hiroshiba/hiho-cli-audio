@@ -17,8 +17,9 @@ class AudioConfig(BaseModel):
 class HotkeyConfig(BaseModel):
     """ホットキー設定"""
 
-    record_toggle: str = Field(default="<ctrl>+<shift>+d", description="録音開始/停止")
-    record_stop: str = Field(default="<ctrl>+<shift>+d", description="録音強制停止")
+    record_toggle: str = Field(
+        default="<ctrl>+<shift>+d", description="録音開始/停止切り替え"
+    )
 
 
 class GeminiConfig(BaseModel):
