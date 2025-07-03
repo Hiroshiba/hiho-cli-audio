@@ -8,8 +8,8 @@ import numpy as np
 import sounddevice as sd
 import typer
 
-from .config import Config
-from .types import AudioDeviceInfo, RecordingResult
+from hiho_cli_audio.config import Config
+from hiho_cli_audio.types import AudioDeviceInfo, RecordingResult
 
 
 def get_audio_devices() -> list[AudioDeviceInfo]:

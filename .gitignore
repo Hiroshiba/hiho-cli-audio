@@ -208,3 +208,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project specific exclusions from global gitignore
+!src/hiho_cli_audio/

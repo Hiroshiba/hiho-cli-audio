@@ -133,18 +133,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```
 hiho-cli-audio/
-├── main.py                 # CLIエントリーポイント
 ├── src/
-│   ├── __init__.py
-│   ├── config.py          # 設定ファイル管理
-│   ├── audio.py           # 音声録音機能
-│   ├── gemini.py          # Gemini API連携
-│   ├── hotkey.py          # ホットキー監視・デーモン機能
-│   └── types.py           # 型定義
-├── pyproject.toml         # プロジェクト設定
+│   └── hiho_cli_audio/    # パッケージディレクトリ
+│       ├── __init__.py
+│       ├── main.py        # CLIエントリーポイント
+│       ├── config.py      # 設定ファイル管理
+│       ├── audio.py       # 音声録音機能
+│       ├── gemini.py      # Gemini API連携
+│       ├── hotkey.py      # ホットキー監視・デーモン機能
+│       └── types.py       # 型定義
+├── pyproject.toml         # プロジェクト設定（setuptools設定含む）
 ├── .python-version        # Python 3.11指定
 └── uv.lock               # 依存関係ロック
 ```
+
+### パッケージ構造の特徴
+- **src-layout**: Pythonパッケージ配布の標準構造
+- **絶対インポート**: `from hiho_cli_audio.config import Config` 形式
+- **setuptools対応**: pyproject.tomlに[build-system]と[tool.setuptools]設定
 
 ## 開発時の注意点
 
@@ -156,16 +162,37 @@ hiho-cli-audio/
 
 ## 実行方法
 
-### 開発環境セットアップ
+### 開発環境での実行
 ```bash
 # 依存関係インストール
 uv sync
 
-# アプリケーション実行
-uv run python main.py --help
-uv run python main.py daemon    # デーモンモードでホットキー監視開始
-uv run python main.py config    # 設定ファイルの場所を表示
+# アプリケーション実行（モジュール形式）
+uv run python -m hiho_cli_audio.main --help
+uv run python -m hiho_cli_audio.main daemon    # デーモンモードでホットキー監視開始
+uv run python -m hiho_cli_audio.main config    # 設定ファイルの場所を表示
 ```
+
+### uvxを使った実行
+```bash
+# 一度だけ実行（エフェメラル環境）
+uvx --from git+https://github.com/ユーザー名/hiho-cli-audio hiho-cli-audio config
+
+# ローカルからツールとしてインストール
+uv tool install .
+
+# インストール後の実行
+uvx hiho-cli-audio daemon
+uvx hiho-cli-audio config
+
+# アンインストール
+uv tool uninstall hiho-cli-audio
+```
+
+### 重要な注意点
+- **main.pyの直接実行は不可**: `python src/hiho_cli_audio/main.py` は動作しません
+- **uv runが必須**: 開発環境ではモジュール実行 (`-m hiho_cli_audio.main`) を使用
+- **絶対インポート**: パッケージ内のインポートは `from hiho_cli_audio.xxx import yyy` 形式
 
 ### 開発ツール
 

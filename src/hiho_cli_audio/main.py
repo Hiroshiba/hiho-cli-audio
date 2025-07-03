@@ -2,8 +2,8 @@
 
 import typer
 
-from src.config import Config
-from src.hotkey import HotkeyDaemon
+from hiho_cli_audio.config import Config
+from hiho_cli_audio.hotkey import HotkeyDaemon
 
 app = typer.Typer(help="Gemini音声認識CLIアプリケーション")
 

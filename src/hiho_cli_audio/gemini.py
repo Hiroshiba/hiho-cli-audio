@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 from google import genai
 
-from .config import Config
-from .types import CostInfo, TranscriptionResult
+from hiho_cli_audio.config import Config
+from hiho_cli_audio.types import CostInfo, TranscriptionResult
 
 
 class GeminiClient:

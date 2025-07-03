@@ -9,9 +9,9 @@ import pyperclip
 import typer
 from pynput import keyboard
 
-from .audio import AudioRecorder, print_audio_devices
-from .config import Config
-from .gemini import GeminiClient
+from hiho_cli_audio.audio import AudioRecorder, print_audio_devices
+from hiho_cli_audio.config import Config
+from hiho_cli_audio.gemini import GeminiClient
 
 
 class HotkeyDaemon:
