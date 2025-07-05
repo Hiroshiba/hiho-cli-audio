@@ -9,10 +9,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 開発環境とツール
 
 ### パッケージ管理
-- **npm**: Node.jsパッケージマネージャーを使用
-  - `npm install` でプロジェクトの依存関係をインストール
-  - `npm run dev` で開発サーバーを起動
-  - `npm run build` でアプリケーションをビルド
+- **pnpm**: Node.jsパッケージマネージャーを使用
+  - `pnpm install` でプロジェクトの依存関係をインストール
+  - `pnpm dev` で開発サーバーを起動
+  - `pnpm build:win/mac/linux` でアプリケーションをビルド
 
 ### 必須ライブラリ
 - **Electron**: デスクトップアプリケーションフレームワーク
@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - 設定画面・UI コンポーネント
   - リアクティブなデータバインディング
   - TypeScript対応
-- **Vite**: ビルドツール・開発サーバー
+- **electron-vite**: Electron向けビルドツール・開発サーバー
   - 高速なHMR（Hot Module Replacement）
   - TypeScript・Vue SFC対応
   - Electron向けの最適化
@@ -192,32 +192,32 @@ hiho-cli-audio/
 ### 開発環境での実行
 ```bash
 # 依存関係インストール
-npm install
+pnpm install
 
 # SOXバイナリのインストール（プラットフォーム別）
 # macOS: brew install sox
 # Windows: choco install sox または手動インストール
 # Linux: sudo apt-get install sox
 
-# 開発サーバー起動（実際のコマンドは後で調整予定）
-npm run dev
-
-# アプリケーション実行（実際のコマンドは後で調整予定）
-npm run electron:dev
+# 開発サーバー起動
+pnpm dev
 ```
 
 ### プロダクションビルド
 ```bash
-# アプリケーションビルド
-npm run build
+# Windows向けビルド
+pnpm build:win
 
-# インストーラー作成
-npm run build:electron
+# macOS向けビルド
+pnpm build:mac
+
+# Linux向けビルド
+pnpm build:linux
 ```
 
 ### 重要な注意点
 - **メインプロセスとレンダラープロセスの分離**: IPCでの通信が必要
-- **npm run devが必須**: 開発環境ではVite devサーバーを使用
+- **pnpm devが必須**: 開発環境ではelectron-vite devサーバーを使用
 - **絶対インポート**: `@/`エイリアスを使用してsrcディレクトリを参照
 
 ### 開発ツール
@@ -227,13 +227,10 @@ npm run build:electron
 - Electronプロジェクト用の設定
 ```bash
 # リント実行
-npm run lint
+pnpm lint
 
 # フォーマット実行  
-npm run format
-
-# 自動修正
-npm run lint:fix
+pnpm format
 ```
 
 #### TypeScript
@@ -241,7 +238,7 @@ npm run lint:fix
 - メインプロセス・レンダラープロセス個別設定
 ```bash
 # 型チェック実行
-npm run type-check
+pnpm typecheck
 ```
 
 ## README.md メンテナンス方針
