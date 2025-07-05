@@ -10,4 +10,10 @@ export interface IPCChannels {
   'config:get': Config
   /** 設定更新 */
   'config:update': Partial<Config>
+  /** 設定リセット */
+  'config:reset': Config
+  /** 設定ファイル存在確認 */
+  'config:exists': boolean
+  /** 設定ファイルパス取得 */
+  'config:path': string
 }
