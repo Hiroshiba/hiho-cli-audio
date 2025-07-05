@@ -22,12 +22,16 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^4.0.0",
-    "electron-updater": "^6.3.9"
+    "@google/genai": "^1.8.0",
+    "electron-updater": "^6.3.9",
+    "js-yaml": "^4.1.0",
+    "zod": "^3.25.74"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.0.0",
     "@electron-toolkit/tsconfig": "^1.0.1",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.14.1",
     "@vitejs/plugin-vue": "^5.2.3",
     "electron": "^35.1.5",
