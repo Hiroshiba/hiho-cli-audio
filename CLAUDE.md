@@ -4,81 +4,96 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## プロジェクト概要
 
-このプロジェクトは、Gemini音声認識APIを利用したMac/Windows対応のCLIアプリケーションです。ホットキー（Ctrl+Shift+D）によるトリガーでマイク音声の録音開始/停止を制御し、リアルタイムで文字起こしを行い、結果をクリップボードに自動コピーするデーモン型アプリケーションです。
+このプロジェクトは、Gemini音声認識APIを利用したMac/Windows対応のElectronアプリケーションです。ホットキー（Ctrl+Shift+D）によるトリガーでマイク音声の録音開始/停止を制御し、リアルタイムで文字起こしを行い、結果をクリップボードに自動コピーするバックグラウンド型アプリケーションです。
 
 ## 開発環境とツール
 
 ### パッケージ管理
-- **uv**: Rust製の次世代Pythonパッケージマネージャーを使用
-  - 仮想環境の作成とパッケージ管理を一元化
-  - `uv sync` でプロジェクトの依存関係をインストール
-  - `uv run python script.py` でスクリプトを実行
+- **npm**: Node.jsパッケージマネージャーを使用
+  - `npm install` でプロジェクトの依存関係をインストール
+  - `npm run dev` で開発サーバーを起動
+  - `npm run build` でアプリケーションをビルド
 
 ### 必須ライブラリ
-- **Typer**: CLIアプリケーションフレームワーク
-  - コマンドライン引数とサブコマンドの処理
-  - 型ヒント対応の自動的なヘルプ生成
-  - プログレスバー表示機能
-- **Pydantic**: データバリデーションとシリアライゼーション
-  - 設定ファイルの読み込みとバリデーション
-  - API レスポンスのパース
-  - 型安全なデータモデル定義
-- **httpx**: 高速HTTP クライアント（Gemini API 連携）
-- **sounddevice**: 音声録音・再生ライブラリ
-- **pyperclip**: クリップボード操作ライブラリ
-- **pyyaml**: YAML設定ファイル読み込み
-- **pynput**: グローバルホットキー監視ライブラリ（Ctrl+Shift+D検知）
-- **numpy**: 音声データ処理
+- **Electron**: デスクトップアプリケーションフレームワーク
+  - メインプロセス・レンダラープロセスの制御
+  - グローバルホットキー機能
+  - クリップボード操作機能
+- **Vue.js**: フロントエンドフレームワーク
+  - 設定画面・UI コンポーネント
+  - リアクティブなデータバインディング
+  - TypeScript対応
+- **Vite**: ビルドツール・開発サーバー
+  - 高速なHMR（Hot Module Replacement）
+  - TypeScript・Vue SFC対応
+  - Electron向けの最適化
+- **@google/genai**: Gemini API クライアント（メインプロセス）
+- **fetch**: HTTP クライアント（標準Web API）
+- **SOX**: 音声リサンプリング・処理ライブラリ（CLIバイナリ）
+- **Web Audio API**: 音声録音ライブラリ（レンダラープロセス）
+- **Zod**: データバリデーション・型安全性
+- **js-yaml**: YAML設定ファイル読み込み
 
 ## アーキテクチャ設計指針
 
 ### 設定管理
 - 設定ファイルは `~/.config/hiho-cli-audio/config.yaml` に配置
-- Pydanticモデルで設定値をバリデーション
-- API キーなどの機密情報は環境変数ではなく設定ファイルで管理
+- Zodスキーマで設定値をバリデーション
+- API キーなどの機密情報は設定ファイルで管理（Node.jsの暗号化を検討）
 - ホットキー設定（デフォルト: Ctrl+Shift+D）の変更可能
 
+### Electronアーキテクチャ
+- **メインプロセス**: グローバルホットキー・リサンプリング・Gemini API・設定管理
+- **レンダラープロセス**: 音声録音・設定画面・Vue.js UI
+- **IPC通信**: メインプロセスとレンダラープロセス間のデータ交換
+- **IPCブリッジ**: 録音データをレンダラーからメインプロセスに転送
+- **バックグラウンド実行**: ウィンドウを非表示にして常駐
+
 ### 音声処理フロー
-1. デーモンプロセスによるホットキー（Ctrl+Shift+D）監視
+1. メインプロセスによるホットキー（Ctrl+Shift+D）監視
 2. ホットキー押下による録音開始/停止のトグル制御
-3. リアルタイム音声データの収集と蓄積
-4. 録音停止時のGemini API への音声データ送信
-5. 認識結果のクリップボードへの自動コピー
-6. トークン使用量のログ出力
+3. レンダラープロセスでWeb Audio APIによるリアルタイム音声データ収集
+4. IPCブリッジで録音データをメインプロセスに転送
+5. メインプロセスでSOXを使用した16kHzモノラルへのリサンプリング処理
+6. 録音停止時の@google/genaiを使用したGemini API への音声データ送信
+7. 認識結果のクリップボードへの自動コピー
+8. トークン使用量のログ出力
 
 ### エラー処理戦略
 - 想定外の挙動では例外を投げる
 - フォールバック処理は極力避ける
-- ネットワークエラーやAPI キー関連のエラーはターミナルに表示してデーモンを継続
+- ネットワークエラーやAPI キー関連のエラーはコンソールログで表示
+- メインプロセスのエラーではアプリケーションを継続
 
 ## コーディング規約
 
-### Python固有の規約
-- Python 3.11対応コードで記述
-- Python 3.9+の組み込み型を使用（`typing.List` → `list`, `typing.Dict` → `dict`, `typing.Tuple` → `tuple`, `typing.Set` → `set`）
-- Python 3.10+のUnion型記法を使用（`typing.Union[str, None]` → `str | None`, `typing.Optional[str]` → `str | None`）
-- `os.path` ではなく `pathlib.Path` を使用
-- `Path.open()` ではなく `Path.read_text()` / `Path.read_bytes()` を使用（ファイル読み書きは可能な限り`Path`のメソッドを使用）
+### TypeScript/Node.js固有の規約
+- TypeScript 5.0+対応コードで記述
+- 厳密な型チェック設定（`strict: true`）を使用
+- `any`型の使用を避け、具体的な型定義を使用
+- Node.jsのESModules（`import`/`export`）を使用
+- ファイルパス操作は `node:path` モジュールを使用
+- ファイル読み書きは `node:fs/promises` を使用
 
 ### 一般的な規約
-- 関数・クラスには1行のdocstringを記述
+- 関数・クラスには1行のJSDocを記述
 - 変数名・関数名から自明なコメントは書かない
 - **コード内コメントは可能な限り少なくする**（コメントが必要=コードが複雑すぎる証拠）
 - 関数の引数にはデフォルト値を設定しない（設定ファイルのデフォルト値は例外）
-- 型ヒントを必須とする
+- 型注釈を必須とする
 - **型サポートを極力活用する**
-  - `dict`や`list`などの抽象的な型を避け、具体的な型を使用
-  - 戻り値には`dict`ではなくデータクラスやPydanticモデルを使用
+  - `any`や`object`などの抽象的な型を避け、具体的な型を使用
+  - 戻り値には`Record<string, any>`ではなくinterfaceや型定義を使用
   - 型安全性を最大限に活用してバグを防止
-- null・空文字・-1に特別な意味を持たせない
-- **コメントは必ず日本語で記述する**（pyproject.tomlの設定コメント含む）
+- null・undefined・空文字・-1に特別な意味を持たせない
+- **コメントは必ず日本語で記述する**（package.jsonの設定コメント含む）
 
 ### セキュリティ
 - API キーやクレデンシャル情報をコードに埋め込まない
 - 設定ファイルは適切なパーミッションで保護
-- **PydanticのSecretStr**を使用してAPIキーをログ・エラーメッセージから保護
-  - print()やログ出力時に自動的に「**********」でマスク
-  - 実際の値は`.get_secret_value()`で取得
+- **機密情報の暗号化**を使用してAPIキーをログ・エラーメッセージから保護
+  - console.logやエラー出力時に自動的に「**********」でマスク
+  - 実際の値は復号化関数で取得
 
 ### ⚠️ 重要な制約事項 ⚠️
 **🚨 設定ファイルを読み取り禁止 🚨**
@@ -107,15 +122,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **コミットメッセージは日本語で記述する**
 
-例: `feat(auth): ユーザー認証機能を追加`, `docs: API仕様書を更新`
+例: `feat(audio): 音声認識機能を追加`, `docs: API仕様書を更新`
 
 ## 外部システム連携
 
 ### OS統合
-- クリップボード操作: 各OSの標準API使用（pyperclip）
-- ホットキー: pynputによるグローバルホットキー監視
-- デーモン化: バックグラウンドプロセスとして常駐
-- シグナルハンドラー: Ctrl+Cによる安全な終了処理
+- クリップボード操作: Electronの`clipboard`モジュール使用
+- ホットキー: Electronの`globalShortcut`モジュールでグローバルホットキー監視
+- バックグラウンド実行: ウィンドウを非表示にして常駐
+- プロセス制御: メインプロセスでのイベント処理
+- 音声処理: SOXバイナリをNode.jsから実行
 
 ### API統合
 - Gemini音声認識API
@@ -124,7 +140,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## ログとモニタリング
 
-- 標準出力/標準エラー出力を使用
+- コンソールログを使用
 - 処理開始/完了のタイムスタンプ
 - トークン使用量の記録
 - エラー発生時の詳細情報
@@ -134,76 +150,98 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```
 hiho-cli-audio/
 ├── src/
-│   └── hiho_cli_audio/    # パッケージディレクトリ
-│       ├── __init__.py
-│       ├── main.py        # CLIエントリーポイント
-│       ├── config.py      # 設定ファイル管理
-│       ├── audio.py       # 音声録音機能
-│       ├── gemini.py      # Gemini API連携
-│       ├── hotkey.py      # ホットキー監視・デーモン機能
-│       └── types.py       # 型定義
-├── pyproject.toml         # プロジェクト設定（setuptools設定含む）
-├── .python-version        # Python 3.11指定
-└── uv.lock               # 依存関係ロック
+│   ├── main/              # メインプロセス
+│   │   ├── main.ts        # Electronメインプロセス
+│   │   ├── config.ts      # 設定ファイル管理
+│   │   ├── resample.ts    # 音声リサンプリング機能（SOX）
+│   │   ├── gemini.ts      # Gemini API連携
+│   │   ├── hotkey.ts      # ホットキー監視機能
+│   │   ├── ipc.ts         # IPC通信ハンドラー
+│   │   └── types.ts       # 型定義
+│   └── renderer/          # レンダラープロセス
+│       ├── main.ts        # Vue.jsエントリーポイント
+│       ├── App.vue        # メインVueコンポーネント
+│       ├── audio.ts       # 音声録音機能（Web Audio API）
+│       ├── components/    # Vueコンポーネント
+│       └── composables/   # Vue Composition API
+├── package.json           # プロジェクト設定・依存関係
+├── vite.config.ts         # Viteビルド設定
+├── tsconfig.json          # TypeScript設定
+└── electron-builder.yml  # Electronビルド設定
 ```
 
-### パッケージ構造の特徴
-- **src-layout**: Pythonパッケージ配布の標準構造
-- **絶対インポート**: `from hiho_cli_audio.config import Config` 形式
-- **setuptools対応**: pyproject.tomlに[build-system]と[tool.setuptools]設定
+### プロジェクト構造の特徴
+- **メインプロセス**: Electron本体・システム統合機能・リサンプリング・Gemini API
+- **レンダラープロセス**: Vue.js UI・設定画面・音声録音機能
+- **IPCブリッジ**: プロセス間通信とデータ転送
+- **TypeScript**: 型安全性とコード品質向上
+- **Vite**: 高速なHMRと最適化されたビルド
 
 ## 開発時の注意点
 
 - 単一ユーザー用途での設計（設定ファイルはホームディレクトリ配下）
-- デーモンプロセスによるバックグラウンド常駐型アプリケーション
+- バックグラウンド実行によるウィンドウ非表示常駐型アプリケーション
 - 起動から待機状態まで5秒以内のパフォーマンス要件  
 - macOS（最新2バージョン）とWindows 10/11の両対応が必要
 - ホットキー監視によるCPU使用率の最小化
+- Web Audio APIの制限とSOXによるリサンプリング処理
+- IPCブリッジによるプロセス間データ転送の最適化
 
 ## 実行方法
 
 ### 開発環境での実行
 ```bash
 # 依存関係インストール
-uv sync
+npm install
 
-# アプリケーション実行（モジュール形式）
-uv run python -m hiho_cli_audio.main --help
-uv run python -m hiho_cli_audio.main daemon    # デーモンモードでホットキー監視開始
-uv run python -m hiho_cli_audio.main config    # 設定ファイルの場所を表示
+# SOXバイナリのインストール（プラットフォーム別）
+# macOS: brew install sox
+# Windows: choco install sox または手動インストール
+# Linux: sudo apt-get install sox
+
+# 開発サーバー起動（実際のコマンドは後で調整予定）
+npm run dev
+
+# アプリケーション実行（実際のコマンドは後で調整予定）
+npm run electron:dev
 ```
 
-### uvxを使った実行
+### プロダクションビルド
 ```bash
-# デーモンモードで実行
-uvx git+https://github.com/Hiroshiba/hiho-cli-audio daemon
+# アプリケーションビルド
+npm run build
 
-# 設定ファイルの場所を表示
-uvx git+https://github.com/Hiroshiba/hiho-cli-audio config
-
-# ヘルプを表示
-uvx git+https://github.com/Hiroshiba/hiho-cli-audio --help
+# インストーラー作成
+npm run build:electron
 ```
 
 ### 重要な注意点
-- **main.pyの直接実行は不可**: `python src/hiho_cli_audio/main.py` は動作しません
-- **uv runが必須**: 開発環境ではモジュール実行 (`-m hiho_cli_audio.main`) を使用
-- **絶対インポート**: パッケージ内のインポートは `from hiho_cli_audio.xxx import yyy` 形式
+- **メインプロセスとレンダラープロセスの分離**: IPCでの通信が必要
+- **npm run devが必須**: 開発環境ではVite devサーバーを使用
+- **絶対インポート**: `@/`エイリアスを使用してsrcディレクトリを参照
 
 ### 開発ツール
 
-#### Ruff（コードフォーマッター・リンター）
-- VOICEVOX Engineの設定をベースに採用
-- Python 3.11対応、日本語docstring対応
+#### ESLint・Prettier（コードフォーマッター・リンター）
+- TypeScript・Vue.js対応設定
+- Electronプロジェクト用の設定
 ```bash
 # リント実行
-uv run ruff check .
+npm run lint
 
 # フォーマット実行  
-uv run ruff format .
+npm run format
 
 # 自動修正
-uv run ruff check --fix .
+npm run lint:fix
+```
+
+#### TypeScript
+- 厳密な型チェック設定
+- メインプロセス・レンダラープロセス個別設定
+```bash
+# 型チェック実行
+npm run type-check
 ```
 
 ## README.md メンテナンス方針
@@ -211,6 +249,6 @@ uv run ruff check --fix .
 README.mdは以下の方針で簡潔に維持する：
 - **使用者向けの必要最小限の情報のみ記載**
 - **長ったらしい説明や重複する内容は削除**
-- **UVXでの起動方法を中心とした構成**
+- **インストールとアプリケーション実行を中心とした構成**
 - **技術的詳細は開発環境セクションにとどめる**
 - **GitHubでよく見るシンプルな形式を保持**
