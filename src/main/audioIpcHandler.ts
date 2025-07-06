@@ -1,4 +1,5 @@
 import { ipcMain, BrowserWindow } from 'electron'
+import { promises as fs } from 'node:fs'
 import { AudioProcessor } from './audioProcessor'
 import { GeminiService } from './geminiService'
 import { RecordingData } from './types'
@@ -21,11 +22,10 @@ export class AudioIpcHandler {
 
   /** 録音データ受信ハンドラー */
   private async handleRecordingData(_event: Electron.IpcMainEvent, recordingData: RecordingData): Promise<void> {
+    let wavFilePath: string | null = null
     try {
-      console.log('録音データを受信しました:', {
-        audioDataLength: recordingData.audioData.length,
-        sampleRate: recordingData.sampleRate,
-        channels: recordingData.channels
+      console.log('WebM音声データを受信しました:', {
+        dataSize: recordingData.webmData.length
       })
 
       const processResult = await this.audioProcessor.processAudioData(recordingData)
@@ -34,13 +34,11 @@ export class AudioIpcHandler {
         return
       }
 
+      wavFilePath = processResult.data
       console.log('音声処理完了、音声認識開始')
       
       const geminiClient = this.geminiService.getClient()
-      const transcriptionResult = await geminiClient.transcribe(
-        processResult.data,
-        16000
-      )
+      const transcriptionResult = await geminiClient.transcribe(wavFilePath)
 
       console.log('音声認識完了:', transcriptionResult)
 
@@ -51,6 +49,10 @@ export class AudioIpcHandler {
 
     } catch (error) {
       console.error('録音データ処理中にエラーが発生しました:', error)
+    } finally {
+      if (wavFilePath) {
+        await fs.unlink(wavFilePath).catch(() => {})
+      }
     }
   }
 

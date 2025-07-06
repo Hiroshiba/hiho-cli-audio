@@ -15,13 +15,11 @@ export class GeminiClient {
     this.ai = new GoogleGenAI({ apiKey: config.apiKey })
   }
 
-  /** 音声データをテキストに変換し、コスト情報も返す */
-  async transcribe(audioData: Float32Array, sampleRate: number): Promise<TranscriptionResult> {
-    const tempFilePath = await this.saveAudioToTempFile(audioData, sampleRate)
-
+  /** WAVファイルをテキストに変換し、コスト情報も返す */
+  async transcribe(wavFilePath: string): Promise<TranscriptionResult> {
     try {
       const uploadedFile = await this.ai.files.upload({
-        file: tempFilePath,
+        file: wavFilePath,
         config: {
           mimeType: 'audio/wav'
         }
@@ -53,54 +51,11 @@ export class GeminiClient {
         text: response.text || '',
         costInfo
       }
-    } finally {
-      await fs.unlink(tempFilePath).catch(() => {})
+    } catch (error) {
+      throw error
     }
   }
 
-  /** Float32ArrayをWAVファイルとして一時保存 */
-  private async saveAudioToTempFile(audioData: Float32Array, sampleRate: number): Promise<string> {
-    const audioInt16 = new Int16Array(audioData.length)
-    for (let i = 0; i < audioData.length; i++) {
-      audioInt16[i] = Math.max(-32768, Math.min(32767, audioData[i] * 32767))
-    }
-
-    const tempFileName = `audio_${randomUUID()}.wav`
-    const tempFilePath = join(tmpdir(), tempFileName)
-
-    const wavBuffer = this.createWavBuffer(audioInt16, sampleRate)
-    await fs.writeFile(tempFilePath, wavBuffer)
-
-    return tempFilePath
-  }
-
-  /** WAVファイルのバイナリデータを作成 */
-  private createWavBuffer(audioData: Int16Array, sampleRate: number): Buffer {
-    const length = audioData.length
-    const buffer = Buffer.alloc(44 + length * 2)
-
-    // WAVヘッダー
-    buffer.write('RIFF', 0)
-    buffer.writeUInt32LE(36 + length * 2, 4)
-    buffer.write('WAVE', 8)
-    buffer.write('fmt ', 12)
-    buffer.writeUInt32LE(16, 16)
-    buffer.writeUInt16LE(1, 20)
-    buffer.writeUInt16LE(1, 22)
-    buffer.writeUInt32LE(sampleRate, 24)
-    buffer.writeUInt32LE(sampleRate * 2, 28)
-    buffer.writeUInt16LE(2, 32)
-    buffer.writeUInt16LE(16, 34)
-    buffer.write('data', 36)
-    buffer.writeUInt32LE(length * 2, 40)
-
-    // 音声データ
-    for (let i = 0; i < length; i++) {
-      buffer.writeInt16LE(audioData[i], 44 + i * 2)
-    }
-
-    return buffer
-  }
 
   /** トークン使用量からコスト計算 */
   private calculateCost(usage: any): CostInfo {

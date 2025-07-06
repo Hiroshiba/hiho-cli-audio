@@ -52,12 +52,8 @@ export interface TranscriptionResult {
 
 /** IPC通信用の録音データ */
 export interface RecordingData {
-  /** 音声データ */
-  audioData: Float32Array
-  /** サンプリングレート */
-  sampleRate: number
-  /** チャンネル数 */
-  channels: number
+  /** WebM形式音声データ */
+  webmData: Uint8Array
 }
 
 /** Result型 - 成功とエラーを表現 */

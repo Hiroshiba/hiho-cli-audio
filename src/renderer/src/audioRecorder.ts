@@ -1,8 +1,7 @@
 /** IPC通信用の録音データ */
 export interface RecordingData {
-  audioData: Float32Array
-  sampleRate: number
-  channels: number
+  /** WebM形式音声データ */
+  webmData: Uint8Array
 }
 
 /** Result型 - 成功とエラーを表現 */
@@ -107,12 +106,10 @@ export class AudioRecorder {
 
     try {
       const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' })
-      const audioData = await this.convertBlobToFloat32Array(audioBlob)
+      const webmData = new Uint8Array(await audioBlob.arrayBuffer())
       
       const recordingData: RecordingData = {
-        audioData,
-        sampleRate: 44100,
-        channels: 1
+        webmData
       }
 
       window.electron.ipcRenderer.send('recording:data', recordingData)
@@ -124,18 +121,6 @@ export class AudioRecorder {
     }
   }
 
-  /** BlobをFloat32Arrayに変換 */
-  private async convertBlobToFloat32Array(blob: Blob): Promise<Float32Array> {
-    const arrayBuffer = await blob.arrayBuffer()
-    const audioContext = new AudioContext()
-    
-    try {
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
-      return audioBuffer.getChannelData(0)
-    } finally {
-      await audioContext.close()
-    }
-  }
 
   /** 録音中かどうか */
   get isRecording(): boolean {
