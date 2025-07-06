@@ -6,7 +6,9 @@ export class GeminiService {
   private static instance: GeminiService | null = null
   private client: GeminiClient | null = null
 
-  private constructor() {}
+  private constructor() {
+    // シングルトンパターンのため、プライベートコンストラクタは空
+  }
 
   /** シングルトンインスタンスを取得 */
   static getInstance(): GeminiService {

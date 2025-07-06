@@ -103,7 +103,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - API キーやクレデンシャル情報をコードに埋め込まない
 - 設定ファイルは適切なパーミッションで保護
 - **機密情報の暗号化**を使用してAPIキーをログ・エラーメッセージから保護
-  - console.logやエラー出力時に自動的に「****\*\*****」でマスク
+  - console.logやエラー出力時に自動的に「\***\*\*\*\*\***」でマスク
   - 実際の値は復号化関数で取得
 
 ### 重要な制約事項

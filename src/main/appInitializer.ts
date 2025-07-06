@@ -73,7 +73,7 @@ export class AppInitializer {
   private async initializeHotkeyService(): Promise<void> {
     try {
       const config = await this.configService.loadConfig()
-      
+
       const recordingToggleCallback = (): void => {
         console.log('録音トグルが実行されました')
         this.audioIpcHandler.toggleRecording()
@@ -91,7 +91,7 @@ export class AppInitializer {
   /** アプリケーションの終了処理 */
   async cleanup(): Promise<void> {
     console.log('アプリケーションのクリーンアップを開始します')
-    
+
     try {
       const hotkeyService = HotkeyService.getExistingInstance()
       hotkeyService.cleanup()

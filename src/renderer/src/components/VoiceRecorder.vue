@@ -4,16 +4,16 @@
       <div class="status" :class="statusClass">
         {{ stateText }}
       </div>
-      
+
       <div v-if="state === 'recording'" class="duration">
         録音時間: {{ Math.floor(duration) }}秒 / {{ maxDuration }}秒
       </div>
     </div>
-    
+
     <div v-if="transcriptionResult" class="result">
       <div class="result-header">
         <h3>認識結果</h3>
-        <button @click="copyToClipboard" class="copy-btn" title="クリップボードにコピー">
+        <button class="copy-btn" title="クリップボードにコピー" @click="copyToClipboard">
           📋 コピー
         </button>
       </div>
@@ -22,7 +22,8 @@
       </div>
       <div class="cost-info">
         <div class="cost-main">
-          💰 コスト: <span class="cost-amount">${{ transcriptionResult.costInfo.costUsd.toFixed(4) }}</span>
+          💰 コスト:
+          <span class="cost-amount">${{ transcriptionResult.costInfo.costUsd.toFixed(4) }}</span>
         </div>
         <div class="token-details">
           <span class="token-item">
@@ -34,10 +35,8 @@
         </div>
       </div>
     </div>
-    
-    <div v-if="error" class="error">
-      エラー: {{ error }}
-    </div>
+
+    <div v-if="error" class="error">エラー: {{ error }}</div>
   </div>
 </template>
 
@@ -66,19 +65,27 @@ const error = ref<string | null>(null)
 
 const stateText = computed(() => {
   switch (state.value) {
-    case 'idle': return '待機中'
-    case 'recording': return '録音中'
-    case 'processing': return '音声認識中'
-    default: throw new Error(`未対応の録音状態: ${state.value}`)
+    case 'idle':
+      return '待機中'
+    case 'recording':
+      return '録音中'
+    case 'processing':
+      return '音声認識中'
+    default:
+      throw new Error(`未対応の録音状態: ${state.value}`)
   }
 })
 
 const statusClass = computed(() => {
   switch (state.value) {
-    case 'idle': return 'idle'
-    case 'recording': return 'recording'
-    case 'processing': return 'recognizing'
-    default: throw new Error(`未対応の録音状態: ${state.value}`)
+    case 'idle':
+      return 'idle'
+    case 'recording':
+      return 'recording'
+    case 'processing':
+      return 'recognizing'
+    default:
+      throw new Error(`未対応の録音状態: ${state.value}`)
   }
 })
 
@@ -96,12 +103,11 @@ const onDurationChange = (newDuration: number): void => {
 const handleTranscriptionResult = (_event: unknown, result: TranscriptionResult): void => {
   transcriptionResult.value = result
   state.value = 'idle'
-  
+
   if (result.text) {
     writeClipboard(result.text)
   }
 }
-
 
 const handleRecordingStart = async (): Promise<void> => {
   console.log('IPC: 録音開始指示を受信しました')
@@ -109,9 +115,9 @@ const handleRecordingStart = async (): Promise<void> => {
     console.error('AudioRecorderが初期化されていません')
     return
   }
-  
+
   error.value = null
-  
+
   if (state.value === 'idle') {
     const result = await recorder.value.startRecording()
     if (!result.success) {
@@ -131,7 +137,7 @@ const handleRecordingStop = (): void => {
     console.error('AudioRecorderが初期化されていません')
     return
   }
-  
+
   if (state.value === 'recording') {
     recorder.value.stopRecording()
     console.log('録音を停止しました')
@@ -144,7 +150,7 @@ const writeClipboard = async (text: string): Promise<void> => {
   try {
     await navigator.clipboard.writeText(text)
     console.log('クリップボードにコピーしました')
-  } catch (error) {
+  } catch {
     console.log('Web API でのクリップボードコピーに失敗、IPC経由で再試行します')
     try {
       const success = await window.electron.ipcRenderer.invoke('clipboard:writeText', text)
@@ -167,11 +173,11 @@ const copyToClipboard = async (): Promise<void> => {
 
 onMounted(() => {
   recorder.value = new AudioRecorder(maxDuration.value, onStateChange, onDurationChange)
-  
+
   window.electron.ipcRenderer.on('transcription:result', handleTranscriptionResult)
   window.electron.ipcRenderer.on('recording:start', handleRecordingStart)
   window.electron.ipcRenderer.on('recording:stop', handleRecordingStop)
-  
+
   console.log('IPC: イベントリスナーを登録しました')
 })
 
@@ -179,7 +185,7 @@ onUnmounted(() => {
   window.electron.ipcRenderer.removeAllListeners('transcription:result')
   window.electron.ipcRenderer.removeAllListeners('recording:start')
   window.electron.ipcRenderer.removeAllListeners('recording:stop')
-  
+
   console.log('IPC: イベントリスナーを解除しました')
 })
 </script>
@@ -189,7 +195,11 @@ onUnmounted(() => {
   padding: 16px;
   max-width: 500px;
   margin: 0 auto;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
   min-height: 100vh;
   box-sizing: border-box;
 }
@@ -235,9 +245,15 @@ onUnmounted(() => {
 }
 
 @keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.02); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .duration {
@@ -245,7 +261,6 @@ onUnmounted(() => {
   margin: 10px 0;
   color: #ff6b6b;
 }
-
 
 .result {
   margin: 20px 0;
@@ -301,7 +316,11 @@ onUnmounted(() => {
   padding: 16px;
   border-radius: 8px;
   border-left: 4px solid #28a745;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
   white-space: pre-wrap;
   word-break: break-word;
   min-height: 60px;

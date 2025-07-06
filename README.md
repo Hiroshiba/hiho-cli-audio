@@ -44,8 +44,8 @@ pnpm dev
 設定ファイルにGemini APIキーを設定してください：
 
 ```yaml
-gemini_api_key: "your-gemini-api-key-here"
-hotkey: "CommandOrControl+Shift+D"
+gemini_api_key: 'your-gemini-api-key-here'
+hotkey: 'CommandOrControl+Shift+D'
 ```
 
 ## 使用方法
@@ -62,17 +62,20 @@ hotkey: "CommandOrControl+Shift+D"
 ### 環境構築
 
 1. リポジトリをクローン：
+
 ```bash
 git clone https://github.com/hiroshiba/hiho-cli-audio.git
 cd hiho-cli-audio
 ```
 
 2. 依存関係をインストール：
+
 ```bash
 pnpm install
 ```
 
 3. 開発環境での実行：
+
 ```bash
 # 開発サーバー起動
 pnpm dev

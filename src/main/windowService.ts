@@ -3,9 +3,9 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { Config } from './types'
 
-/** ウィンドウ管理サービス 
- * 
- * 参考: https://chatgpt.com/share/686af13e-fde8-8008-a8a4-e4b1e4f3ff18
+/** ウィンドウ管理サービス
+ *
+ * 最前面表示について: https://chatgpt.com/share/686af13e-fde8-8008-a8a4-e4b1e4f3ff18
  */
 export class WindowService {
   private static instance: WindowService
@@ -36,13 +36,13 @@ export class WindowService {
   /** メインウィンドウを作成 */
   private createWindow(): BrowserWindow {
     // アイコンの設定
-    const iconPath = process.platform === 'linux' ? 
-      join(__dirname, '../../resources/icon.png') : undefined
+    const iconPath =
+      process.platform === 'linux' ? join(__dirname, '../../resources/icon.png') : undefined
 
     // ウィンドウを作成
     const window = new BrowserWindow({
-      width: 550,
-      height: 400,
+      width: 350,
+      height: 600,
       show: false,
       autoHideMenuBar: true,
       ...(iconPath ? { icon: iconPath } : {}),
@@ -77,7 +77,7 @@ export class WindowService {
   /** 最前面表示を有効化 */
   private enableAlwaysOnTop(): void {
     this.mainWindow.setAlwaysOnTop(true)
-    
+
     if (process.platform === 'darwin') {
       // macOS: 全スペース＋フルスクリーンにも表示
       this.mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
@@ -95,7 +95,6 @@ export class WindowService {
       this.mainWindow.setVisibleOnAllWorkspaces(false)
     }
   }
-
 
   /** 設定に基づいて最前面表示を適用 */
   private applyAlwaysOnTopSetting(): void {

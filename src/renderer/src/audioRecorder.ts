@@ -63,7 +63,7 @@ export class AudioRecorder {
       this.onStateChange('recording')
 
       this.startDurationTimer()
-      
+
       return { success: true, data: undefined }
     } catch (error) {
       return { success: false, error: `録音開始エラー: ${error}` }
@@ -84,12 +84,12 @@ export class AudioRecorder {
       if (this.mediaRecorder?.state === 'recording') {
         const elapsed = (Date.now() - this.startTime) / 1000
         this.onDurationChange(elapsed)
-        
+
         if (elapsed >= this.maxDuration) {
           this.stopRecording()
           return
         }
-        
+
         setTimeout(updateDuration, 100)
       }
     }
@@ -107,7 +107,7 @@ export class AudioRecorder {
     try {
       const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' })
       const webmData = new Uint8Array(await audioBlob.arrayBuffer())
-      
+
       const recordingData: RecordingData = {
         webmData
       }

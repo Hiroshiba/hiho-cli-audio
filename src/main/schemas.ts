@@ -1,38 +1,50 @@
 import { z } from 'zod'
 
 /** 音声録音設定のスキーマ（スネークケース → キャメルケース変換） */
-export const AudioConfigSchema = z.object({
-  sample_rate: z.number().min(8000).max(48000).default(16000),
-  channels: z.number().min(1).max(2).default(1),
-  max_duration: z.number().min(1).max(3600).default(300)
-}).transform(data => ({
-  sampleRate: data.sample_rate,
-  channels: data.channels,
-  maxDuration: data.max_duration
-}))
+export const AudioConfigSchema = z
+  .object({
+    sample_rate: z.number().min(8000).max(48000).default(16000),
+    channels: z.number().min(1).max(2).default(1),
+    max_duration: z.number().min(1).max(3600).default(300)
+  })
+  .transform((data) => ({
+    sampleRate: data.sample_rate,
+    channels: data.channels,
+    maxDuration: data.max_duration
+  }))
 
 /** ホットキー設定のスキーマ（スネークケース → キャメルケース変換） */
-export const HotkeyConfigSchema = z.object({
-  record_toggle: z.string().min(1).default('CommandOrControl+Shift+D')
-}).transform(data => ({
-  recordToggle: data.record_toggle
-}))
+export const HotkeyConfigSchema = z
+  .object({
+    record_toggle: z.string().min(1).default('CommandOrControl+Shift+D')
+  })
+  .transform((data) => ({
+    recordToggle: data.record_toggle
+  }))
 
 /** Gemini API設定のスキーマ（スネークケース → キャメルケース変換） */
-export const GeminiConfigSchema = z.object({
-  api_key: z.string().min(1).transform(val => val.trim()).default(''),
-  model: z.string().min(1).default('gemini-1.5-flash-latest')
-}).transform(data => ({
-  apiKey: data.api_key,
-  model: data.model
-}))
+export const GeminiConfigSchema = z
+  .object({
+    api_key: z
+      .string()
+      .min(1)
+      .transform((val) => val.trim())
+      .default(''),
+    model: z.string().min(1).default('gemini-1.5-flash-latest')
+  })
+  .transform((data) => ({
+    apiKey: data.api_key,
+    model: data.model
+  }))
 
 /** UI設定のスキーマ（スネークケース → キャメルケース変換） */
-export const UiConfigSchema = z.object({
-  always_on_top: z.boolean().default(true)
-}).transform(data => ({
-  alwaysOnTop: data.always_on_top
-}))
+export const UiConfigSchema = z
+  .object({
+    always_on_top: z.boolean().default(true)
+  })
+  .transform((data) => ({
+    alwaysOnTop: data.always_on_top
+  }))
 
 /** アプリケーション設定のスキーマ */
 export const ConfigSchema = z.object({
@@ -62,7 +74,23 @@ export const DefaultConfig = {
 } as const
 
 /** 設定をスネークケースに変換（保存用） */
-export function configToSnakeCase(config: z.infer<typeof ConfigSchema>) {
+export function configToSnakeCase(config: z.infer<typeof ConfigSchema>): {
+  audio: {
+    sample_rate: number
+    channels: number
+    max_duration: number
+  }
+  hotkey: {
+    record_toggle: string
+  }
+  gemini: {
+    api_key: string
+    model: string
+  }
+  ui: {
+    always_on_top: boolean
+  }
+} {
   return {
     audio: {
       sample_rate: config.audio.sampleRate,

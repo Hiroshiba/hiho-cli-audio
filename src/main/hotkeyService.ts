@@ -37,10 +37,12 @@ export class HotkeyService {
       })
 
       if (!isRegistered) {
-        const errorMessage = `ホットキー '${this.config.recordToggle}' の登録に失敗しました。` +
+        const errorMessage =
+          `ホットキー '${this.config.recordToggle}' の登録に失敗しました。` +
           '他のアプリケーションが同じホットキーを使用している可能性があります。' +
-          (process.platform === 'darwin' ? 
-            ' macOSの場合、システム環境設定でアクセシビリティ権限が必要な場合があります。' : '')
+          (process.platform === 'darwin'
+            ? ' macOSの場合、システム環境設定でアクセシビリティ権限が必要な場合があります。'
+            : '')
         throw new Error(errorMessage)
       }
 
@@ -55,7 +57,7 @@ export class HotkeyService {
   /** 現在のホットキーを更新 */
   updateHotkey(newShortcut: string): void {
     this.unregisterCurrentHotkey()
-    
+
     try {
       const isRegistered = globalShortcut.register(newShortcut, () => {
         this.recordingToggleCallback()

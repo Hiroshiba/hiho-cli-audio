@@ -75,7 +75,10 @@ export class AudioIpcHandler {
   }
 
   /** 録音データ受信ハンドラー */
-  private async handleRecordingData(_event: Electron.IpcMainEvent, recordingData: RecordingData): Promise<void> {
+  private async handleRecordingData(
+    _event: Electron.IpcMainEvent,
+    recordingData: RecordingData
+  ): Promise<void> {
     let wavFilePath: string | null = null
     try {
       console.log('WebM音声データを受信しました:', {
@@ -92,7 +95,7 @@ export class AudioIpcHandler {
 
       wavFilePath = processResult.data
       console.log('音声処理完了、音声認識開始')
-      
+
       const geminiClient = this.geminiService.getClient()
       const transcriptionResult = await geminiClient.transcribe(wavFilePath)
 
@@ -102,7 +105,6 @@ export class AudioIpcHandler {
       if (mainWindow) {
         mainWindow.webContents.send('transcription:result', transcriptionResult)
       }
-
     } catch (error) {
       console.error('録音データ処理中にエラーが発生しました:', error)
     } finally {
@@ -113,7 +115,10 @@ export class AudioIpcHandler {
   }
 
   /** クリップボードにテキストを書き込み */
-  private async handleClipboardWrite(_event: Electron.IpcMainInvokeEvent, text: string): Promise<boolean> {
+  private async handleClipboardWrite(
+    _event: Electron.IpcMainInvokeEvent,
+    text: string
+  ): Promise<boolean> {
     try {
       clipboard.writeText(text)
       console.log('クリップボードにテキストを書き込みました')
