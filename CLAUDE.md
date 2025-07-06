@@ -54,7 +54,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. ホットキー押下による録音開始/停止のトグル制御
 3. レンダラープロセスでWeb Audio APIによるリアルタイム音声データ収集
 4. IPCブリッジで録音データをメインプロセスに転送
-5. メインプロセスでSOXを使用した16kHzモノラルへのリサンプリング処理
+5. メインプロセスでFFmpegを使用した16kHzモノラルへのリサンプリング処理
 6. 録音停止時の@google/genaiを使用したGemini API への音声データ送信
 7. 認識結果のクリップボードへの自動コピー
 8. トークン使用量のログ出力
@@ -102,6 +102,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **APIキーなど機密情報の流出防止のための徹底ルール**
 - **他のセッションでも必ずこのルールを遵守すること**
 
+**防御的プログラミング禁止**
+- **起動時のフォールバック処理は禁止**（設定ファイル読み込み失敗時はエラーで停止）
+- **関数・メソッドのデフォルト引数は禁止**（設定ファイルのデフォルト値は例外）
+- **オプショナル引数（?）の使用を避ける**（必要な引数は必須にする）
+- **switch文・条件分岐でのdefaultケースは適切なエラーにする**
+- **遅延初期化や条件付きインスタンス化を避ける**（依存関係は明示的に注入）
+- **型を騙す適当なコードは禁止**（unknown、any、assertionの濫用禁止）
+
 **ファイル名規約**
 - **TypeScriptファイルはcamelCase.tsで命名する**（例: `ipcTypes.ts`, `audioRecorder.ts`）
 - **ケバブケース（kebab-case）は使用しない**（例: `ipc-types.ts`）
@@ -137,7 +145,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ホットキー: Electronの`globalShortcut`モジュールでグローバルホットキー監視
 - バックグラウンド実行: ウィンドウを非表示にして常駐
 - プロセス制御: メインプロセスでのイベント処理
-- 音声処理: SOXバイナリをNode.jsから実行
+- 音声処理: FFmpegバイナリをNode.jsから実行
 
 ### API統合
 - Gemini音声認識API
@@ -159,7 +167,7 @@ hiho-cli-audio/
 │   ├── main/              # メインプロセス
 │   │   ├── main.ts        # Electronメインプロセス
 │   │   ├── config.ts      # 設定ファイル管理
-│   │   ├── resample.ts    # 音声リサンプリング機能（SOX）
+│   │   ├── resample.ts    # 音声リサンプリング機能（FFmpeg）
 │   │   ├── gemini.ts      # Gemini API連携
 │   │   ├── hotkey.ts      # ホットキー監視機能
 │   │   ├── ipc.ts         # IPC通信ハンドラー
@@ -190,7 +198,7 @@ hiho-cli-audio/
 - 起動から待機状態まで5秒以内のパフォーマンス要件  
 - macOS（最新2バージョン）とWindows 10/11の両対応が必要
 - ホットキー監視によるCPU使用率の最小化
-- Web Audio APIの制限とSOXによるリサンプリング処理
+- Web Audio APIの制限とFFmpegによるリサンプリング処理
 - IPCブリッジによるプロセス間データ転送の最適化
 
 ## 実行方法
@@ -264,7 +272,7 @@ README.mdは以下の方針で簡潔に維持する：
 1. **プロジェクト依存関係の整備** (完了)
    - 必要なライブラリの追加（@google/genai、zod、js-yaml等）
    - TypeScript型定義の整備
-   - SOXバイナリの統合検討（後回し）
+   - FFmpegバイナリの統合検討（後回し）
 
 2. **型定義とスキーマの実装** (完了)
    - 音声・設定・API関連の型定義作成
@@ -284,7 +292,7 @@ README.mdは以下の方針で簡潔に維持する：
    - エラーハンドリング機能
 
 5. **メインプロセス: 音声処理**
-   - SOXによる音声リサンプリング機能
+   - FFmpegによる音声リサンプリング機能
    - 一時ファイル管理
    - 音声フォーマット変換
 
@@ -351,7 +359,7 @@ README.mdは以下の方針で簡潔に維持する：
 #### 注意すべき制約事項
 - **プラットフォーム差異**: macOS/Windows/Linuxでの動作確認
 - **セキュリティ**: サンドボックス環境での制約
-- **パフォーマンス**: Web Audio APIの制限とSOX処理の最適化
+- **パフォーマンス**: Web Audio APIの制限とFFmpeg処理の最適化
 - **メモリ管理**: 大量音声データの効率的な処理
 
 ### 移行の進め方
