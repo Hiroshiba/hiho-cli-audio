@@ -1,28 +1,18 @@
 <template>
-  <div class="debug-recorder">
-    <h2>音声録音デバッグ</h2>
-    
-    <div class="status">
-      状態: {{ stateText }}
-    </div>
-    
-    <div v-if="state === 'recording'" class="duration">
-      録音時間: {{ Math.floor(duration) }}秒 / {{ maxDuration }}秒
-    </div>
-    
-    <div class="controls">
-      <button 
-        @click="toggleRecording" 
-        :disabled="state === 'processing'"
-        :class="buttonClass"
-      >
-        {{ buttonText }}
-      </button>
+  <div class="audio-recorder">
+    <div class="status-container">
+      <div class="status" :class="statusClass">
+        {{ stateText }}
+      </div>
+      
+      <div v-if="state === 'recording'" class="duration">
+        録音時間: {{ Math.floor(duration) }}秒 / {{ maxDuration }}秒
+      </div>
     </div>
     
     <div v-if="transcriptionResult" class="result">
       <div class="result-header">
-        <h3>🎯 認識結果</h3>
+        <h3>認識結果</h3>
         <button @click="copyToClipboard" class="copy-btn" title="クリップボードにコピー">
           📋 コピー
         </button>
@@ -78,25 +68,19 @@ const stateText = computed(() => {
   switch (state.value) {
     case 'idle': return '待機中'
     case 'recording': return '録音中'
-    case 'processing': return '処理中'
+    case 'processing': return '音声認識中'
     default: throw new Error(`未対応の録音状態: ${state.value}`)
   }
 })
 
-const buttonText = computed(() => {
+const statusClass = computed(() => {
   switch (state.value) {
-    case 'idle': return '録音開始'
-    case 'recording': return '録音停止'
-    case 'processing': return '処理中...'
+    case 'idle': return 'idle'
+    case 'recording': return 'recording'
+    case 'processing': return 'recognizing'
     default: throw new Error(`未対応の録音状態: ${state.value}`)
   }
 })
-
-const buttonClass = computed(() => ({
-  'record-btn': true,
-  'recording': state.value === 'recording',
-  'processing': state.value === 'processing'
-}))
 
 const onStateChange = (newState: RecordingState): void => {
   state.value = newState
@@ -109,28 +93,15 @@ const onDurationChange = (newDuration: number): void => {
   duration.value = newDuration
 }
 
-const toggleRecording = async (): Promise<void> => {
-  if (!recorder.value) return
-  
-  error.value = null
-  
-  if (state.value === 'idle') {
-    const result = await recorder.value.startRecording()
-    if (!result.success) {
-      error.value = result.error
-    }
-  } else if (state.value === 'recording') {
-    recorder.value.stopRecording()
-  }
-}
-
 const handleTranscriptionResult = (_event: unknown, result: TranscriptionResult): void => {
   transcriptionResult.value = result
+  state.value = 'idle'
   
   if (result.text) {
     writeClipboard(result.text)
   }
 }
+
 
 const handleRecordingStart = async (): Promise<void> => {
   console.log('IPC: 録音開始指示を受信しました')
@@ -214,19 +185,59 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.debug-recorder {
-  padding: 20px;
-  max-width: 600px;
+.audio-recorder {
+  padding: 16px;
+  max-width: 500px;
   margin: 0 auto;
-  font-family: Arial, sans-serif;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.status-container {
+  margin-bottom: 20px;
 }
 
 .status {
   font-size: 18px;
-  margin: 10px 0;
-  padding: 10px;
-  background: #f0f0f0;
-  border-radius: 5px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.status.idle {
+  background: #f8f9fa;
+  color: #495057;
+  border: 2px solid #e9ecef;
+}
+
+.status.recording {
+  background: #fff5f5;
+  color: #c53030;
+  border: 2px solid #fed7d7;
+  animation: pulse 1.5s infinite;
+}
+
+.status.processing {
+  background: #fffbf0;
+  color: #d69e2e;
+  border: 2px solid #feebc8;
+}
+
+.status.recognizing {
+  background: #f0fff4;
+  color: #38a169;
+  border: 2px solid #c6f6d5;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
 }
 
 .duration {
@@ -235,42 +246,6 @@ onUnmounted(() => {
   color: #ff6b6b;
 }
 
-.controls {
-  margin: 20px 0;
-}
-
-.record-btn {
-  padding: 15px 30px;
-  font-size: 16px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  background: #4CAF50;
-  color: white;
-  transition: background 0.3s;
-}
-
-.record-btn:hover:not(:disabled) {
-  background: #45a049;
-}
-
-.record-btn.recording {
-  background: #f44336;
-}
-
-.record-btn.recording:hover:not(:disabled) {
-  background: #da190b;
-}
-
-.record-btn.processing {
-  background: #ff9800;
-  cursor: not-allowed;
-}
-
-.record-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
 
 .result {
   margin: 20px 0;

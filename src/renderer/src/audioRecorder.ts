@@ -113,14 +113,11 @@ export class AudioRecorder {
       }
 
       window.electron.ipcRenderer.send('recording:data', recordingData)
-      
-      this.onStateChange('idle')
     } catch (error) {
       console.error('録音データ処理エラー:', error)
       this.onStateChange('idle')
     }
   }
-
 
   /** 録音中かどうか */
   get isRecording(): boolean {

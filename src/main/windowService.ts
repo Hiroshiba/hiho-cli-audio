@@ -41,8 +41,8 @@ export class WindowService {
 
     // ウィンドウを作成
     const window = new BrowserWindow({
-      width: 900,
-      height: 670,
+      width: 550,
+      height: 400,
       show: false,
       autoHideMenuBar: true,
       ...(iconPath ? { icon: iconPath } : {}),

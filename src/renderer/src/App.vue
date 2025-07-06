@@ -1,10 +1,18 @@
 <script setup lang="ts">
-import DebugRecorder from './components/DebugRecorder.vue'
+import VoiceRecorder from './components/VoiceRecorder.vue'
 </script>
 
 <template>
   <div class="app">
-    <h1>Hiho CLI Audio</h1>
-    <DebugRecorder />
+    <VoiceRecorder />
   </div>
 </template>
+
+<style scoped>
+.app {
+  height: 100vh;
+  overflow-y: auto;
+  padding: 0;
+  margin: 0;
+}
+</style>
