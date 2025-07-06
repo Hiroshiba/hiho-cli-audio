@@ -29,7 +29,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Electron向けの最適化
 - **@google/genai**: Gemini API クライアント（メインプロセス）
 - **fetch**: HTTP クライアント（標準Web API）
-- **SOX**: 音声リサンプリング・処理ライブラリ（CLIバイナリ）
+- **ffmpeg-static**: 音声リサンプリング・処理ライブラリ（静的バイナリ）
 - **Web Audio API**: 音声録音ライブラリ（レンダラープロセス）
 - **Zod**: データバリデーション・型安全性
 - **js-yaml**: YAML設定ファイル読み込み
@@ -199,11 +199,6 @@ hiho-cli-audio/
 ```bash
 # 依存関係インストール
 pnpm install
-
-# SOXバイナリのインストール（プラットフォーム別）
-# macOS: brew install sox
-# Windows: choco install sox または手動インストール
-# Linux: sudo apt-get install sox
 
 # 開発サーバー起動
 pnpm dev
