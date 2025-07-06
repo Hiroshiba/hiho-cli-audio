@@ -50,14 +50,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **バックグラウンド実行**: ウィンドウを非表示にして常駐
 
 ### 音声処理フロー
-1. メインプロセスによるホットキー（Ctrl+Shift+D）監視
-2. ホットキー押下による録音開始/停止のトグル制御
-3. レンダラープロセスでMediaRecorderによるWebM形式音声データの録音
-4. IPCブリッジでWebM形式音声データをメインプロセスに転送
-5. メインプロセスでFFmpegを使用してWebMから16kHzモノラルWAVへのリサンプリング処理
-6. 録音停止時の@google/genaiを使用したGemini API へのWAVファイル送信
-7. 認識結果のクリップボードへの自動コピー
-8. トークン使用量のログ出力と一時ファイルのクリーンアップ
+1. **ホットキー監視**: メインプロセスでグローバルホットキー（CommandOrControl+Shift+D）を監視
+2. **録音制御**: ホットキー押下でIPCブリッジを通じてレンダラーに録音開始/停止指示
+3. **音声録音**: レンダラープロセスでMediaRecorderによるWebM形式音声データのリアルタイム録音
+4. **データ転送**: IPCブリッジでWebM音声データをメインプロセスに転送
+5. **音声変換**: メインプロセスでFFmpeg-staticを使用してWebMから16kHzモノラルWAVへリサンプリング
+6. **音声認識**: 録音停止時に@google/genaiを使用してGemini APIでWAVファイルを音声認識
+7. **結果処理**: 認識結果をレンダラーに送信してクリップボードへ自動コピー
+8. **クリーンアップ**: トークン使用量とコスト情報をログ出力、一時ファイルの削除
 
 ### エラー処理戦略
 - 想定外の挙動では例外を投げる
@@ -108,6 +108,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **オプショナル引数（?）の使用を避ける**（必要な引数は必須にする）
 - **switch文・条件分岐でのdefaultケースは適切なエラーにする**
 - **遅延初期化や条件付きインスタンス化を避ける**（依存関係は明示的に注入）
+  - **プロパティをnullで初期化することを禁止**（コンストラクターで必要な依存関係を注入）
+  - **後からinitialize()メソッドで設定することを避ける**
+  - **例外**: シングルトンパターンのgetInstance()は許可（ただし依存関係はコンストラクターで注入）
 - **型を騙す適当なコードは禁止**（unknown、any、assertionの濫用禁止）
 
 **ファイル名規約**
@@ -165,19 +168,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 hiho-cli-audio/
 ├── src/
 │   ├── main/              # メインプロセス
-│   │   ├── main.ts        # Electronメインプロセス
-│   │   ├── config.ts      # 設定ファイル管理
-│   │   ├── resample.ts    # 音声リサンプリング機能（FFmpeg）
-│   │   ├── gemini.ts      # Gemini API連携
-│   │   ├── hotkey.ts      # ホットキー監視機能
-│   │   ├── ipc.ts         # IPC通信ハンドラー
+│   │   ├── index.ts       # Electronメインプロセス
+│   │   ├── appInitializer.ts    # アプリケーション初期化
+│   │   ├── configService.ts     # 設定ファイル管理
+│   │   ├── audioProcessor.ts    # 音声リサンプリング機能（FFmpeg）
+│   │   ├── geminiClient.ts      # Gemini APIクライアント
+│   │   ├── geminiService.ts     # Gemini API連携サービス
+│   │   ├── hotkeyService.ts     # ホットキー監視機能（グローバルショートカット）
+│   │   ├── audioIpcHandler.ts   # 音声関連IPC通信ハンドラー
+│   │   ├── configIpcHandler.ts  # 設定関連IPC通信ハンドラー
+│   │   ├── ipcTypes.ts    # IPC通信用型定義
+│   │   ├── schemas.ts     # Zodスキーマ
 │   │   └── types.ts       # 型定義
+│   ├── preload/           # プリロード
+│   │   ├── index.ts       # プリロードスクリプト
+│   │   └── index.d.ts     # プリロード型定義
 │   └── renderer/          # レンダラープロセス
-│       ├── main.ts        # Vue.jsエントリーポイント
-│       ├── App.vue        # メインVueコンポーネント
-│       ├── audio.ts       # 音声録音機能（Web Audio API）
-│       ├── components/    # Vueコンポーネント
-│       └── composables/   # Vue Composition API
+│       ├── index.html     # メインHTML
+│       └── src/
+│           ├── main.ts        # Vue.jsエントリーポイント
+│           ├── App.vue        # メインVueコンポーネント
+│           ├── audioRecorder.ts # 音声録音機能（Web Audio API）
+│           ├── components/    # Vueコンポーネント
+│           └── assets/        # 静的アセット
 ├── package.json           # プロジェクト設定・依存関係
 ├── vite.config.ts         # Viteビルド設定
 ├── tsconfig.json          # TypeScript設定
@@ -263,8 +276,9 @@ README.mdは以下の方針で簡潔に維持する：
 
 ### 移行状況
 - **元プロジェクト**: `OldPython/` ディレクトリにPythonベースのCLIアプリケーション
-- **現在の状況**: Electronプロジェクトのテンプレート状態（未実装）
+- **現在の状況**: **核となる機能が完全動作中** - ホットキー録音・音声認識・クリップボード連携が実装済み
 - **移行目標**: 全機能をElectronアプリケーションに移行
+- **達成度**: フェーズ1〜3の主要機能（8/9タスク）が完了、基本的な音声認識ワークフローが動作
 
 ### 移行タスクの優先順位
 
@@ -301,16 +315,18 @@ README.mdは以下の方針で簡潔に維持する：
    - WebM形式リアルタイム音声データ収集
    - 録音状態の管理
 
-#### フェーズ3: システム統合（中優先度）
+#### フェーズ3: システム統合（中優先度） - 進捗: 2/3完了
 7. **IPC通信の実装** (完了)
    - メインプロセス ⇔ レンダラープロセス間通信
    - WebM形式録音データの効率的な転送
    - 設定変更の同期
 
-8. **グローバルホットキー機能**
+8. **グローバルホットキー機能** (完了)
    - ElectronのglobalShortcutモジュール使用
-   - ホットキー設定の動的変更
+   - ホットキー設定の動的変更（CommandOrControl+Shift+D）
    - 競合回避とエラーハンドリング
+   - IPCブリッジによる録音開始/停止制御
+   - レンダラープロセスでのIPC受信処理とAudioRecorder連携
 
 9. **バックグラウンド実行**
    - ウィンドウの非表示常駐機能

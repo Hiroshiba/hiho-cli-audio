@@ -13,7 +13,7 @@ export const AudioConfigSchema = z.object({
 
 /** ホットキー設定のスキーマ（スネークケース → キャメルケース変換） */
 export const HotkeyConfigSchema = z.object({
-  record_toggle: z.string().min(1).default('Ctrl+Shift+D')
+  record_toggle: z.string().min(1).default('CommandOrControl+Shift+D')
 }).transform(data => ({
   recordToggle: data.record_toggle
 }))
@@ -42,7 +42,7 @@ export const DefaultConfig = {
     maxDuration: 300
   },
   hotkey: {
-    recordToggle: 'Ctrl+Shift+D'
+    recordToggle: 'CommandOrControl+Shift+D'
   },
   gemini: {
     apiKey: '',

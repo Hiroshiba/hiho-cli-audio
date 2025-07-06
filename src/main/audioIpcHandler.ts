@@ -8,6 +8,7 @@ import { RecordingData } from './types'
 export class AudioIpcHandler {
   private audioProcessor: AudioProcessor
   private geminiService: GeminiService
+  private isRecording: boolean = false
 
   constructor() {
     this.audioProcessor = new AudioProcessor()
@@ -18,6 +19,58 @@ export class AudioIpcHandler {
   /** IPC ハンドラーをセットアップ */
   private setupIpcHandlers(): void {
     ipcMain.on('recording:data', this.handleRecordingData.bind(this))
+    ipcMain.handle('recording:status', this.getRecordingStatus.bind(this))
+  }
+
+  /** 録音開始 */
+  startRecording(): void {
+    if (this.isRecording) {
+      console.log('録音は既に開始されています')
+      return
+    }
+
+    const mainWindow = BrowserWindow.getAllWindows()[0]
+    if (!mainWindow) {
+      console.error('メインウィンドウが見つかりません')
+      return
+    }
+
+    this.isRecording = true
+    mainWindow.webContents.send('recording:start')
+    console.log('録音開始指示を送信しました')
+  }
+
+  /** 録音停止 */
+  stopRecording(): void {
+    if (!this.isRecording) {
+      console.log('録音は開始されていません')
+      return
+    }
+
+    const mainWindow = BrowserWindow.getAllWindows()[0]
+    if (!mainWindow) {
+      console.error('メインウィンドウが見つかりません')
+      this.isRecording = false
+      return
+    }
+
+    this.isRecording = false
+    mainWindow.webContents.send('recording:stop')
+    console.log('録音停止指示を送信しました')
+  }
+
+  /** 録音トグル */
+  toggleRecording(): void {
+    if (this.isRecording) {
+      this.stopRecording()
+    } else {
+      this.startRecording()
+    }
+  }
+
+  /** 録音状態を取得 */
+  private getRecordingStatus(): boolean {
+    return this.isRecording
   }
 
   /** 録音データ受信ハンドラー */
@@ -27,6 +80,8 @@ export class AudioIpcHandler {
       console.log('WebM音声データを受信しました:', {
         dataSize: recordingData.webmData.length
       })
+
+      this.isRecording = false
 
       const processResult = await this.audioProcessor.processAudioData(recordingData)
       if (!processResult.success) {
@@ -56,9 +111,9 @@ export class AudioIpcHandler {
     }
   }
 
-
   /** クリーンアップ */
   cleanup(): void {
     ipcMain.removeAllListeners('recording:data')
+    ipcMain.removeAllListeners('recording:status')
   }
 }

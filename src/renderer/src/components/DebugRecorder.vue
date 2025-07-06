@@ -132,6 +132,43 @@ const handleTranscriptionResult = (_event: unknown, result: TranscriptionResult)
   }
 }
 
+const handleRecordingStart = async (): Promise<void> => {
+  console.log('IPC: 録音開始指示を受信しました')
+  if (!recorder.value) {
+    console.error('AudioRecorderが初期化されていません')
+    return
+  }
+  
+  error.value = null
+  
+  if (state.value === 'idle') {
+    const result = await recorder.value.startRecording()
+    if (!result.success) {
+      error.value = result.error
+      console.error('録音開始エラー:', result.error)
+    } else {
+      console.log('録音を開始しました')
+    }
+  } else {
+    console.log('録音は既に開始されています。状態:', state.value)
+  }
+}
+
+const handleRecordingStop = (): void => {
+  console.log('IPC: 録音停止指示を受信しました')
+  if (!recorder.value) {
+    console.error('AudioRecorderが初期化されていません')
+    return
+  }
+  
+  if (state.value === 'recording') {
+    recorder.value.stopRecording()
+    console.log('録音を停止しました')
+  } else {
+    console.log('録音は開始されていません。状態:', state.value)
+  }
+}
+
 const copyToClipboard = async (): Promise<void> => {
   if (transcriptionResult.value?.text) {
     try {
@@ -147,10 +184,18 @@ onMounted(() => {
   recorder.value = new AudioRecorder(maxDuration.value, onStateChange, onDurationChange)
   
   window.electron.ipcRenderer.on('transcription:result', handleTranscriptionResult)
+  window.electron.ipcRenderer.on('recording:start', handleRecordingStart)
+  window.electron.ipcRenderer.on('recording:stop', handleRecordingStop)
+  
+  console.log('IPC: イベントリスナーを登録しました')
 })
 
 onUnmounted(() => {
   window.electron.ipcRenderer.removeAllListeners('transcription:result')
+  window.electron.ipcRenderer.removeAllListeners('recording:start')
+  window.electron.ipcRenderer.removeAllListeners('recording:stop')
+  
+  console.log('IPC: イベントリスナーを解除しました')
 })
 </script>
 

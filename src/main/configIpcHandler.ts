@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { ConfigService } from './configService'
+import { HotkeyService } from './hotkeyService'
 import { Config } from './types'
 
 /** 設定関連のIPC通信ハンドラー */
@@ -13,11 +14,37 @@ export class ConfigIpcHandler {
     })
 
     ipcMain.handle('config:update', async (_, updates: Partial<Config>): Promise<Config> => {
-      return await this.configService.updateConfig(updates)
+      const oldConfig = await this.configService.loadConfig()
+      const newConfig = await this.configService.updateConfig(updates)
+      
+      if (updates.hotkey && oldConfig.hotkey.recordToggle !== newConfig.hotkey.recordToggle) {
+        try {
+          const hotkeyService = HotkeyService.getExistingInstance()
+          hotkeyService.updateHotkey(newConfig.hotkey.recordToggle)
+          console.log(`ホットキーを更新しました: ${oldConfig.hotkey.recordToggle} → ${newConfig.hotkey.recordToggle}`)
+        } catch (error) {
+          console.error('ホットキー更新エラー:', error)
+        }
+      }
+      
+      return newConfig
     })
 
     ipcMain.handle('config:reset', async (): Promise<Config> => {
-      return await this.configService.resetConfig()
+      const oldConfig = await this.configService.loadConfig()
+      const newConfig = await this.configService.resetConfig()
+      
+      if (oldConfig.hotkey.recordToggle !== newConfig.hotkey.recordToggle) {
+        try {
+          const hotkeyService = HotkeyService.getExistingInstance()
+          hotkeyService.updateHotkey(newConfig.hotkey.recordToggle)
+          console.log(`ホットキーをリセットしました: ${oldConfig.hotkey.recordToggle} → ${newConfig.hotkey.recordToggle}`)
+        } catch (error) {
+          console.error('ホットキーリセットエラー:', error)
+        }
+      }
+      
+      return newConfig
     })
 
     ipcMain.handle('config:exists', async (): Promise<boolean> => {
