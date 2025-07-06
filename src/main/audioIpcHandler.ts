@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, clipboard } from 'electron'
 import { promises as fs } from 'node:fs'
 import { AudioProcessor } from './audioProcessor'
 import { GeminiService } from './geminiService'
@@ -20,6 +20,7 @@ export class AudioIpcHandler {
   private setupIpcHandlers(): void {
     ipcMain.on('recording:data', this.handleRecordingData.bind(this))
     ipcMain.handle('recording:status', this.getRecordingStatus.bind(this))
+    ipcMain.handle('clipboard:writeText', this.handleClipboardWrite.bind(this))
   }
 
   /** 録音開始 */
@@ -111,9 +112,22 @@ export class AudioIpcHandler {
     }
   }
 
+  /** クリップボードにテキストを書き込み */
+  private async handleClipboardWrite(_event: Electron.IpcMainInvokeEvent, text: string): Promise<boolean> {
+    try {
+      clipboard.writeText(text)
+      console.log('クリップボードにテキストを書き込みました')
+      return true
+    } catch (error) {
+      console.error('クリップボードへの書き込みに失敗しました:', error)
+      return false
+    }
+  }
+
   /** クリーンアップ */
   cleanup(): void {
     ipcMain.removeAllListeners('recording:data')
     ipcMain.removeAllListeners('recording:status')
+    ipcMain.removeAllListeners('clipboard:writeText')
   }
 }

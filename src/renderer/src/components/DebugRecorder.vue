@@ -128,7 +128,7 @@ const handleTranscriptionResult = (_event: unknown, result: TranscriptionResult)
   transcriptionResult.value = result
   
   if (result.text) {
-    navigator.clipboard.writeText(result.text).catch(console.error)
+    writeClipboard(result.text)
   }
 }
 
@@ -169,14 +169,28 @@ const handleRecordingStop = (): void => {
   }
 }
 
+const writeClipboard = async (text: string): Promise<void> => {
+  try {
+    await navigator.clipboard.writeText(text)
+    console.log('クリップボードにコピーしました')
+  } catch (error) {
+    console.log('Web API でのクリップボードコピーに失敗、IPC経由で再試行します')
+    try {
+      const success = await window.electron.ipcRenderer.invoke('clipboard:writeText', text)
+      if (success) {
+        console.log('IPC経由でクリップボードにコピーしました')
+      } else {
+        console.error('IPC経由でのクリップボードコピーに失敗しました')
+      }
+    } catch (ipcError) {
+      console.error('IPC経由でのクリップボードコピーでエラーが発生しました:', ipcError)
+    }
+  }
+}
+
 const copyToClipboard = async (): Promise<void> => {
   if (transcriptionResult.value?.text) {
-    try {
-      await navigator.clipboard.writeText(transcriptionResult.value.text)
-      console.log('クリップボードにコピーしました')
-    } catch (error) {
-      console.error('クリップボードへのコピーに失敗しました:', error)
-    }
+    await writeClipboard(transcriptionResult.value.text)
   }
 }
 
