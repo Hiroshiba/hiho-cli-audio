@@ -9,12 +9,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 開発環境とツール
 
 ### パッケージ管理
+
 - **pnpm**: Node.jsパッケージマネージャーを使用
   - `pnpm install` でプロジェクトの依存関係をインストール
   - `pnpm dev` で開発サーバーを起動
   - `pnpm build:win/mac/linux` でアプリケーションをビルド
 
 ### 必須ライブラリ
+
 - **Electron**: デスクトップアプリケーションフレームワーク
   - メインプロセス・レンダラープロセスの制御
   - グローバルホットキー機能
@@ -37,12 +39,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## アーキテクチャ設計指針
 
 ### 設定管理
+
 - 設定ファイルは `~/.config/hiho-cli-audio/config.yaml` に配置
 - Zodスキーマで設定値をバリデーション
 - API キーなどの機密情報は設定ファイルで管理（Node.jsの暗号化を検討）
 - ホットキー設定（デフォルト: Ctrl+Shift+D）の変更可能
 
 ### Electronアーキテクチャ
+
 - **メインプロセス**: グローバルホットキー・リサンプリング・Gemini API・設定管理
 - **レンダラープロセス**: 音声録音・認識結果表示・クリップボードコピー・設定画面・Vue.js UI
 - **IPC通信**: メインプロセスとレンダラープロセス間のデータ交換
@@ -50,6 +54,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **最前面表示**: ウィンドウを最前面に常時表示
 
 ### 音声処理フロー
+
 1. **ホットキー監視**: メインプロセスでグローバルホットキー（CommandOrControl+Shift+D）を監視
 2. **録音制御**: ホットキー押下でIPCブリッジを通じてレンダラーに録音開始/停止指示
 3. **音声録音**: レンダラープロセスでMediaRecorderによるWebM形式音声データのリアルタイム録音
@@ -60,6 +65,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 8. **クリーンアップ**: トークン使用量とコスト情報をログ出力、一時ファイルの削除
 
 ### エラー処理戦略
+
 - 想定外の挙動では例外を投げる
 - フォールバック処理は極力避ける
 - ネットワークエラーやAPI キー関連のエラーはコンソールログで表示
@@ -68,6 +74,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## コーディング規約
 
 ### TypeScript/Node.js固有の規約
+
 - TypeScript 5.0+対応コードで記述
 - 厳密な型チェック設定（`strict: true`）を使用
 - `any`型の使用を避け、具体的な型定義を使用
@@ -76,6 +83,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ファイル読み書きは `node:fs/promises` を使用
 
 ### 一般的な規約
+
 - 関数・クラスには1行のJSDocを記述
 - 変数名・関数名から自明なコメントは書かない
 - **コード内コメントは可能な限り少なくする**（コメントが必要=コードが複雑すぎる証拠）
@@ -91,25 +99,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **既存のコードスタイルに必ず合わせる**（命名規則・IPC通信の命名・関数の書き方など）
 
 ### セキュリティ
+
 - API キーやクレデンシャル情報をコードに埋め込まない
 - 設定ファイルは適切なパーミッションで保護
 - **機密情報の暗号化**を使用してAPIキーをログ・エラーメッセージから保護
-  - console.logやエラー出力時に自動的に「**********」でマスク
+  - console.logやエラー出力時に自動的に「****\*\*****」でマスク
   - 実際の値は復号化関数で取得
 
 ### 重要な制約事項
+
 **設定ファイルを読み取り禁止**
+
 - **絶対に設定ファイル（~/.config/hiho-cli-audio/config.yaml）の内容を読み取らない**
 - **APIキーなど機密情報の流出防止のための徹底ルール**
 - **他のセッションでも必ずこのルールを遵守すること**
 
 **防御的プログラミング禁止**
+
 - **起動時のフォールバック処理は禁止**（設定ファイル読み込み失敗時はエラーで停止）
 - **関数・メソッドのデフォルト引数は禁止**（設定ファイルのデフォルト値は例外）
 - **オプショナル引数（?）の使用を避ける**（必要な引数は必須にする）
 - **switch文・条件分岐でのdefaultケースは適切なエラーにする**
 
 **厳格な初期化規約（絶対遵守）**
+
 - **プロパティをnull・undefinedで初期化することを絶対禁止**
   - `private service: Service | null = null` ❌ 絶対NG
   - `private service: Service` ✅ コンストラクターで初期化
@@ -122,14 +135,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - すべての依存関係はコンストラクター実行時に解決
 
 **シングルトンパターンの正しい実装**
+
 ```typescript
 // ✅ 正しいパターン
 export class WindowService {
-  private static instance: WindowService  // nullで初期化しない
-  private readonly config: Config         // readonlyで依存関係を保護
+  private static instance: WindowService // nullで初期化しない
+  private readonly config: Config // readonlyで依存関係を保護
   private readonly mainWindow: BrowserWindow
 
-  private constructor(config: Config) {    // 依存関係をコンストラクターで注入
+  private constructor(config: Config) {
+    // 依存関係をコンストラクターで注入
     this.config = config
     this.mainWindow = this.createWindow()
   }
@@ -151,6 +166,7 @@ export class WindowService {
 ```
 
 **禁止される実装パターン**
+
 ```typescript
 // ❌ これらは絶対に書いてはいけない
 private service: Service | null = null
@@ -165,26 +181,31 @@ initialize(config: Config): void {
 ```
 
 **許可される唯一の例外**
+
 - シングルトンの静的インスタンス変数のみ（`private static instance: ClassName`）
 - 明確な状態管理が必要な場合の一時的なnull使用（コメントで理由を明記）
 
 **ファイル名規約**
+
 - **TypeScriptファイルはcamelCase.tsで命名する**（例: `ipcTypes.ts`, `audioRecorder.ts`）
 - **ケバブケース（kebab-case）は使用しない**（例: `ipc-types.ts`）
 - **この規約は新規ファイル作成時に必ず適用する**
 
 ### 詳細な規約とドキュメント
+
 - **詳細なコーディング規約**: `docs/コーディング規約.md` を参照（必要な時に確認）
 - **プロジェクト要件定義**: `docs/要件定義書.md` を参照（機能要件と非機能要件の詳細）
 
 ### コミットメッセージ規約
+
 **Conventional Commits** を使用してコミットメッセージを記述する：
 
 形式: `<type>[optional scope]: <description>`
 
 主要なtype:
+
 - `feat:` 新機能
-- `fix:` バグ修正  
+- `fix:` バグ修正
 - `docs:` ドキュメントのみの変更
 - `style:` コードの意味に影響しない変更（フォーマット、空白など）
 - `refactor:` バグ修正や機能追加を行わないコード変更
@@ -199,6 +220,7 @@ initialize(config: Config): void {
 ## 外部システム連携
 
 ### OS統合
+
 - クリップボード操作: Electronの`clipboard`モジュール使用
 - ホットキー: Electronの`globalShortcut`モジュールでグローバルホットキー監視
 - 最前面表示: ウィンドウを最前面に常時表示
@@ -206,6 +228,7 @@ initialize(config: Config): void {
 - 音声処理: FFmpegバイナリをNode.jsから実行
 
 ### API統合
+
 - Gemini音声認識API
 - 入力/出力トークン数の記録
 - レート制限とエラーハンドリング
@@ -254,6 +277,7 @@ hiho-cli-audio/
 ```
 
 ### プロジェクト構造の特徴
+
 - **メインプロセス**: Electron本体・システム統合機能・リサンプリング・Gemini API
 - **レンダラープロセス**: Vue.js UI・認識結果表示・クリップボードコピー・設定画面・音声録音機能
 - **IPCブリッジ**: プロセス間通信とデータ転送
@@ -264,7 +288,7 @@ hiho-cli-audio/
 
 - 単一ユーザー用途での設計（設定ファイルはホームディレクトリ配下）
 - 最前面表示によるウィンドウ常時表示型アプリケーション
-- 起動から待機状態まで5秒以内のパフォーマンス要件  
+- 起動から待機状態まで5秒以内のパフォーマンス要件
 - macOS（最新2バージョン）とWindows 10/11の両対応が必要
 - ホットキー監視によるCPU使用率の最小化
 - Web Audio APIの制限とFFmpegによるリサンプリング処理
@@ -273,6 +297,7 @@ hiho-cli-audio/
 ## 実行方法
 
 ### 開発環境での実行
+
 ```bash
 # 依存関係インストール
 pnpm install
@@ -282,6 +307,7 @@ pnpm dev
 ```
 
 ### プロダクションビルド
+
 ```bash
 # Windows向けビルド
 pnpm build:win
@@ -294,6 +320,7 @@ pnpm build:linux
 ```
 
 ### 重要な注意点
+
 - **メインプロセスとレンダラープロセスの分離**: IPCでの通信が必要
 - **pnpm devが必須**: 開発環境ではelectron-vite devサーバーを使用
 - **絶対インポート**: `@/`エイリアスを使用してsrcディレクトリを参照
@@ -301,19 +328,23 @@ pnpm build:linux
 ### 開発ツール
 
 #### ESLint・Prettier（コードフォーマッター・リンター）
+
 - TypeScript・Vue.js対応設定
 - Electronプロジェクト用の設定
+
 ```bash
 # リント実行
 pnpm lint
 
-# フォーマット実行  
+# フォーマット実行
 pnpm format
 ```
 
 #### TypeScript
+
 - 厳密な型チェック設定
 - メインプロセス・レンダラープロセス個別設定
+
 ```bash
 # 型チェック実行
 pnpm typecheck
@@ -322,6 +353,7 @@ pnpm typecheck
 ## README.md メンテナンス方針
 
 README.mdは以下の方針で簡潔に維持する：
+
 - **使用者向けの必要最小限の情報のみ記載**
 - **長ったらしい説明や重複する内容は削除**
 - **インストールとアプリケーション実行を中心とした構成**
@@ -331,6 +363,7 @@ README.mdは以下の方針で簡潔に維持する：
 ## Python → Electron 移行タスクリスト
 
 ### 移行状況
+
 - **元プロジェクト**: `OldPython/` ディレクトリにPythonベースのCLIアプリケーション
 - **現在の状況**: **全機能が完成・動作中** - ホットキー録音・音声認識・クリップボード連携・UI改善が完了
 - **移行目標**: 全機能をElectronアプリケーションに移行
@@ -339,6 +372,7 @@ README.mdは以下の方針で簡潔に維持する：
 ### 移行タスクの優先順位
 
 #### フェーズ1: 基盤整備（必須）
+
 1. **プロジェクト依存関係の整備** (完了)
    - 必要なライブラリの追加（@google/genai、zod、js-yaml等）
    - TypeScript型定義の整備
@@ -355,6 +389,7 @@ README.mdは以下の方針で簡潔に維持する：
    - 設定値の型安全な管理
 
 #### フェーズ2: コア機能実装（高優先度）
+
 4. **メインプロセス: Gemini API連携** (完了)
    - @google/genaiクライアントの実装
    - 音声ファイルアップロード機能
@@ -372,6 +407,7 @@ README.mdは以下の方針で簡潔に維持する：
    - 録音状態の管理
 
 #### フェーズ3: システム統合（中優先度） - 進捗: 3/3完了
+
 7. **IPC通信の実装** (完了)
    - メインプロセス ⇔ レンダラープロセス間通信
    - WebM形式録音データの効率的な転送
@@ -391,6 +427,7 @@ README.mdは以下の方針で簡潔に維持する：
    - 設定による動的制御
 
 #### フェーズ4: UI・UX実装（低優先度） - 進捗: 2/2完了
+
 10. **認識結果表示機能** (完了)
     - 音声認識結果のリアルタイム表示
     - 録音中と音声認識中のステータス表示
@@ -403,28 +440,35 @@ README.mdは以下の方針で簡潔に維持する：
     - フォールバック処理（Web API → IPC経由）
 
 #### フェーズ5: 最終調整（必須）
-12. **統合テスト**
+
+12. **統合テスト** (完了)
     - エンドツーエンドのワークフロー確認
     - 各プラットフォームでの動作確認
     - パフォーマンステスト
 
-13. **エラーハンドリングの強化**
+13. **エラーハンドリングの強化** (一時保留)
     - 例外発生時の適切な復旧処理
     - ユーザーフレンドリーなエラーメッセージ
     - ログの改善
 
-14. **ドキュメントとREADMEの更新**
+14. **ドキュメントとREADMEの更新** (完了)
     - 新しいElectronアプリケーションの使用方法
-    - トラブルシューティングガイド
-    - 開発者向けドキュメント
+    - ~~トラブルシューティングガイド~~ (不要)
+    - ~~開発者向けドキュメント~~ (不要)
 
-15. **OldPythonディレクトリの削除**
+15. **OldPythonディレクトリの削除** (完了)
     - 移行完了後のPythonプロジェクトの削除
     - 不要なファイルのクリーンアップ
+
+16. **ビルドとGitHub Actions配布機能の実装** (進行中)
+    - Electron-builderによるプラットフォーム別ビルド
+    - GitHub Actionsでの自動ビルド・リリース
+    - 配布用の設定ファイル整備
 
 ### 移行時の重要な考慮事項
 
 #### 技術的な変更点
+
 - **CLI → GUI**: コマンドラインからGUIアプリケーションへ
 - **sounddevice → Web Audio API**: 音声録音APIの変更
 - **pynput → Electron globalShortcut**: ホットキー処理の変更
@@ -432,6 +476,7 @@ README.mdは以下の方針で簡潔に維持する：
 - **Pydantic → Zod**: データバリデーションライブラリの変更
 
 #### 注意すべき制約事項
+
 - **プラットフォーム差異**: macOS/Windows/Linuxでの動作確認
 - **セキュリティ**: サンドボックス環境での制約
 - **パフォーマンス**: Web Audio APIの制限とFFmpeg処理の最適化

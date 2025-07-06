@@ -1,24 +1,34 @@
 # hiho-cli-audio
 
-ホットキーで音声を文字起こししてクリップボードにコピーするCLIアプリケーションです。  
-Geminiを利用して音声認識を行います。
+ホットキーで音声を文字起こししてクリップボードにコピーするElectronアプリケーションです。  
+Gemini音声認識APIを利用してリアルタイム音声認識を行い、最前面表示でいつでもアクセスできます。
 
+## 機能
+
+- **ホットキー対応**: `Ctrl+Shift+D`（Windows/Linux）、`Cmd+Shift+D`（macOS）でワンタッチ録音
+- **リアルタイム音声認識**: Gemini APIによる高精度な音声認識
+- **最前面表示**: 常に最前面に表示されるため、どんなアプリケーションからでもアクセス可能
+- **クリップボード連携**: 認識結果をワンクリックでクリップボードにコピー
+- **クロスプラットフォーム**: Windows、macOS、Linux対応
 
 ## インストール・使用方法
 
-事前に[uv](https://docs.astral.sh/uv/)をインストールしてください。
+<!-- リリース版の使用（将来追加予定）
+### リリース版の使用（推奨）
 
-### uvxを使用した実行（推奨）
+1. [Releases](https://github.com/Hiroshiba/hiho-cli-audio/releases)から最新版をダウンロード
+2. ダウンロードしたアプリケーションを起動
+3. 設定画面でGemini APIキーを設定
+-->
+
+### 開発版の使用
 
 ```bash
-# デーモンモードでホットキー監視開始
-uvx git+https://github.com/Hiroshiba/hiho-cli-audio daemon
+# 依存関係をインストール
+pnpm install
 
-# 設定ファイルの場所を表示
-uvx git+https://github.com/Hiroshiba/hiho-cli-audio config
-
-# ヘルプを表示
-uvx git+https://github.com/Hiroshiba/hiho-cli-audio --help
+# 開発モードで起動
+pnpm dev
 ```
 
 ## 設定方法
@@ -27,19 +37,23 @@ uvx git+https://github.com/Hiroshiba/hiho-cli-audio --help
 
 初回実行時に設定ファイルが自動作成されます：
 
-```bash
-uvx git+https://github.com/Hiroshiba/hiho-cli-audio config
-```
+`~/.config/hiho-cli-audio/config.yaml`
 
 ### 2. Gemini APIキーの設定
 
-`~/.config/hiho-cli-audio/config.yaml` にGemini APIキーを設定してください：
+設定ファイルにGemini APIキーを設定してください：
 
 ```yaml
 gemini_api_key: "your-gemini-api-key-here"
+hotkey: "CommandOrControl+Shift+D"
 ```
 
+## 使用方法
 
+1. アプリケーションを起動
+2. ホットキー（デフォルト: `Ctrl+Shift+D`）を押して録音開始
+3. 再度ホットキーを押して録音停止・音声認識開始
+4. 認識結果が表示されたら「コピー」ボタンでクリップボードにコピー
 
 ## 開発環境
 
@@ -55,32 +69,48 @@ cd hiho-cli-audio
 
 2. 依存関係をインストール：
 ```bash
-uv sync
+pnpm install
 ```
 
 3. 開発環境での実行：
 ```bash
-# モジュール形式で実行
-uv run python -m hiho_cli_audio.main --help
-uv run python -m hiho_cli_audio.main daemon
-uv run python -m hiho_cli_audio.main config
+# 開発サーバー起動
+pnpm dev
+
+# 型チェック実行
+pnpm typecheck
+
+# ビルド実行
+pnpm build
 ```
 
 ### コードフォーマット
 
-Ruffを使用してコードの品質を管理しています：
+Prettier・ESLintを使用してコードの品質を管理しています：
 
 ```bash
 # リント実行
-uv run ruff check .
+pnpm lint
 
 # フォーマット実行
-uv run ruff format .
+pnpm format
 
-# 自動修正
-uv run ruff check --fix .
+# 型チェック実行
+pnpm typecheck
 ```
 
+### ビルド
+
+```bash
+# Windows向けビルド
+pnpm build:win
+
+# macOS向けビルド
+pnpm build:mac
+
+# Linux向けビルド
+pnpm build:linux
+```
 
 ## ライセンス
 
