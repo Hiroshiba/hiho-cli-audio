@@ -3,6 +3,7 @@ import { ConfigIpcHandler } from './configIpcHandler'
 import { AudioIpcHandler } from './audioIpcHandler'
 import { GeminiService } from './geminiService'
 import { HotkeyService } from './hotkeyService'
+import { WindowService } from './windowService'
 
 /** アプリケーションの初期化処理 */
 export class AppInitializer {
@@ -10,7 +11,6 @@ export class AppInitializer {
   private readonly geminiService: GeminiService
   private readonly configIpcHandler: ConfigIpcHandler
   private readonly audioIpcHandler: AudioIpcHandler
-  private hotkeyService: HotkeyService
 
   constructor() {
     this.configService = ConfigService.createDefault()
@@ -24,6 +24,7 @@ export class AppInitializer {
     try {
       await this.initializeConfigService()
       await this.initializeGeminiService()
+      await this.initializeWindowService()
       await this.initializeHotkeyService()
       console.log('アプリケーションの初期化が完了しました')
     } catch (error) {
@@ -56,6 +57,18 @@ export class AppInitializer {
     }
   }
 
+  /** ウィンドウサービスの初期化 */
+  private async initializeWindowService(): Promise<void> {
+    try {
+      const config = await this.configService.loadConfig()
+      WindowService.getInstance(config)
+      console.log('ウィンドウサービスを初期化しました')
+    } catch (error) {
+      console.error('ウィンドウサービスの初期化に失敗しました:', error)
+      throw new Error(`ウィンドウサービス初期化エラー: ${error}`)
+    }
+  }
+
   /** ホットキーサービスの初期化 */
   private async initializeHotkeyService(): Promise<void> {
     try {
@@ -66,8 +79,8 @@ export class AppInitializer {
         this.audioIpcHandler.toggleRecording()
       }
 
-      this.hotkeyService = HotkeyService.getInstance(config.hotkey, recordingToggleCallback)
-      this.hotkeyService.registerHotkeys()
+      const hotkeyService = HotkeyService.getInstance(config.hotkey, recordingToggleCallback)
+      hotkeyService.registerHotkeys()
       console.log('ホットキーサービスを初期化しました')
     } catch (error) {
       console.error('ホットキーサービスの初期化に失敗しました:', error)
@@ -80,7 +93,8 @@ export class AppInitializer {
     console.log('アプリケーションのクリーンアップを開始します')
     
     try {
-      this.hotkeyService.cleanup()
+      const hotkeyService = HotkeyService.getExistingInstance()
+      hotkeyService.cleanup()
     } catch (error) {
       console.error('ホットキーサービスのクリーンアップエラー:', error)
     }
@@ -95,6 +109,13 @@ export class AppInitializer {
       this.configIpcHandler.unregister()
     } catch (error) {
       console.error('設定IPCハンドラーのクリーンアップエラー:', error)
+    }
+
+    try {
+      const windowService = WindowService.getExistingInstance()
+      windowService.cleanup()
+    } catch (error) {
+      console.error('ウィンドウサービスのクリーンアップエラー:', error)
     }
 
     try {

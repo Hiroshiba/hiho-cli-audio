@@ -22,6 +22,12 @@ export interface GeminiConfig {
   model: string
 }
 
+/** UI設定 */
+export interface UiConfig {
+  /** 最前面表示を有効にするか */
+  alwaysOnTop: boolean
+}
+
 /** アプリケーション設定 */
 export interface Config {
   /** 音声録音設定 */
@@ -30,6 +36,8 @@ export interface Config {
   hotkey: HotkeyConfig
   /** Gemini API設定 */
   gemini: GeminiConfig
+  /** UI設定 */
+  ui: UiConfig
 }
 
 /** コスト情報 */

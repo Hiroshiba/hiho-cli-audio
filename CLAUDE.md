@@ -107,11 +107,65 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **関数・メソッドのデフォルト引数は禁止**（設定ファイルのデフォルト値は例外）
 - **オプショナル引数（?）の使用を避ける**（必要な引数は必須にする）
 - **switch文・条件分岐でのdefaultケースは適切なエラーにする**
-- **遅延初期化や条件付きインスタンス化を避ける**（依存関係は明示的に注入）
-  - **プロパティをnullで初期化することを禁止**（コンストラクターで必要な依存関係を注入）
-  - **後からinitialize()メソッドで設定することを避ける**
-  - **例外**: シングルトンパターンのgetInstance()は許可（ただし依存関係はコンストラクターで注入）
-- **型を騙す適当なコードは禁止**（unknown、any、assertionの濫用禁止）
+
+**厳格な初期化規約（絶対遵守）**
+- **プロパティをnull・undefinedで初期化することを絶対禁止**
+  - `private service: Service | null = null` ❌ 絶対NG
+  - `private service: Service` ✅ コンストラクターで初期化
+- **TypeScript非null assertion演算子（!）の使用を絶対禁止**
+  - `private service!: Service` ❌ 絶対NG
+  - コンストラクターでの適切な初期化のみ許可
+- **後からinitialize()メソッドで設定することを禁止**
+  - 設定が必要なオブジェクトは作成時にコンストラクターで依存関係を注入
+- **遅延初期化パターンを禁止**
+  - すべての依存関係はコンストラクター実行時に解決
+
+**シングルトンパターンの正しい実装**
+```typescript
+// ✅ 正しいパターン
+export class WindowService {
+  private static instance: WindowService  // nullで初期化しない
+  private readonly config: Config         // readonlyで依存関係を保護
+  private readonly mainWindow: BrowserWindow
+
+  private constructor(config: Config) {    // 依存関係をコンストラクターで注入
+    this.config = config
+    this.mainWindow = this.createWindow()
+  }
+
+  static getInstance(config: Config): WindowService {
+    if (!WindowService.instance) {
+      WindowService.instance = new WindowService(config)
+    }
+    return WindowService.instance
+  }
+
+  static getExistingInstance(): WindowService {
+    if (!WindowService.instance) {
+      throw new Error('サービスが初期化されていません')
+    }
+    return WindowService.instance
+  }
+}
+```
+
+**禁止される実装パターン**
+```typescript
+// ❌ これらは絶対に書いてはいけない
+private service: Service | null = null
+private service!: Service
+private service?: Service
+private service: Service = undefined as any
+
+// ❌ 後から初期化するパターンも禁止
+initialize(config: Config): void {
+  this.service = new Service(config)  // NG
+}
+```
+
+**許可される唯一の例外**
+- シングルトンの静的インスタンス変数のみ（`private static instance: ClassName`）
+- 明確な状態管理が必要な場合の一時的なnull使用（コメントで理由を明記）
 
 **ファイル名規約**
 - **TypeScriptファイルはcamelCase.tsで命名する**（例: `ipcTypes.ts`, `audioRecorder.ts`）
@@ -171,6 +225,7 @@ hiho-cli-audio/
 │   │   ├── index.ts       # Electronメインプロセス
 │   │   ├── appInitializer.ts    # アプリケーション初期化
 │   │   ├── configService.ts     # 設定ファイル管理
+│   │   ├── windowService.ts     # ウィンドウ管理・最前面表示機能
 │   │   ├── audioProcessor.ts    # 音声リサンプリング機能（FFmpeg）
 │   │   ├── geminiClient.ts      # Gemini APIクライアント
 │   │   ├── geminiService.ts     # Gemini API連携サービス
@@ -315,7 +370,7 @@ README.mdは以下の方針で簡潔に維持する：
    - WebM形式リアルタイム音声データ収集
    - 録音状態の管理
 
-#### フェーズ3: システム統合（中優先度） - 進捗: 2/3完了
+#### フェーズ3: システム統合（中優先度） - 進捗: 3/3完了
 7. **IPC通信の実装** (完了)
    - メインプロセス ⇔ レンダラープロセス間通信
    - WebM形式録音データの効率的な転送
@@ -328,9 +383,11 @@ README.mdは以下の方針で簡潔に維持する：
    - IPCブリッジによる録音開始/停止制御
    - レンダラープロセスでのIPC受信処理とAudioRecorder連携
 
-9. **最前面表示機能**
+9. **最前面表示機能** (完了)
    - ウィンドウの最前面常時表示機能
-   - プロセス終了時の適切なクリーンアップ
+   - プラットフォーム別対応（macOS/Windows）
+   - WindowServiceによるシングルトン管理
+   - 設定による動的制御
 
 #### フェーズ4: UI・UX実装（低優先度）
 10. **認識結果表示機能**

@@ -27,11 +27,19 @@ export const GeminiConfigSchema = z.object({
   model: data.model
 }))
 
+/** UI設定のスキーマ（スネークケース → キャメルケース変換） */
+export const UiConfigSchema = z.object({
+  always_on_top: z.boolean().default(true)
+}).transform(data => ({
+  alwaysOnTop: data.always_on_top
+}))
+
 /** アプリケーション設定のスキーマ */
 export const ConfigSchema = z.object({
   audio: AudioConfigSchema.default({}),
   hotkey: HotkeyConfigSchema.default({}),
-  gemini: GeminiConfigSchema.default({})
+  gemini: GeminiConfigSchema.default({}),
+  ui: UiConfigSchema.default({})
 })
 
 /** デフォルト設定値（キャメルケース） */
@@ -47,6 +55,9 @@ export const DefaultConfig = {
   gemini: {
     apiKey: '',
     model: 'gemini-1.5-flash-latest'
+  },
+  ui: {
+    alwaysOnTop: true
   }
 } as const
 
@@ -64,6 +75,9 @@ export function configToSnakeCase(config: z.infer<typeof ConfigSchema>) {
     gemini: {
       api_key: config.gemini.apiKey,
       model: config.gemini.model
+    },
+    ui: {
+      always_on_top: config.ui.alwaysOnTop
     }
   }
 }
