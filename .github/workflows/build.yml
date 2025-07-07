@@ -53,7 +53,10 @@ jobs:
       - name: <Build> ESLintの実行
         run: pnpm lint
 
-      - name: <Deploy> Electronアプリケーションのビルドと公開
-        run: pnpm run build:${{ matrix.name }} -- --publish always
+      - name: <Build> Electronアプリケーションのビルド
+        run: pnpm run build
+
+      - name: <Deploy> GitHub Releasesへの公開
+        run: pnpm run publish:${{ matrix.name }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
