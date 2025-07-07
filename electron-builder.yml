@@ -29,8 +29,6 @@ dmg:
 linux:
   target:
     - AppImage
-    - snap
-    - deb
   maintainer: hiho-cli-audio
   category: Utility
 appImage:
