@@ -1,0 +1,59 @@
+name: Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "バージョン情報（例: 1.0.0）"
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: win
+          - os: macos-latest
+            name: mac
+          - os: ubuntu-latest
+            name: linux
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: <Setup> リポジトリのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: <Setup> pnpmの設定
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: <Setup> Node.jsとpnpmキャッシュの設定
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+          cache: "pnpm"
+
+      - name: <Setup> 依存関係のインストール
+        run: pnpm install
+
+      - name: <Setup> package.jsonのバージョン更新
+        run: npm version ${{ github.event.inputs.version }} --no-git-tag-version
+
+      - name: <Build> TypeScript型チェック
+        run: pnpm typecheck
+
+      - name: <Build> ESLintの実行
+        run: pnpm lint
+
+      - name: <Deploy> Electronアプリケーションのビルドと公開
+        run: pnpm run build && electron-builder --${{ matrix.name }} --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

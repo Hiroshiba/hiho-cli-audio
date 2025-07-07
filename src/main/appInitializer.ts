@@ -4,6 +4,7 @@ import { AudioIpcHandler } from './audioIpcHandler'
 import { GeminiService } from './geminiService'
 import { HotkeyService } from './hotkeyService'
 import { WindowService } from './windowService'
+import { UpdaterService } from './updaterService'
 
 /** アプリケーションの初期化処理 */
 export class AppInitializer {
@@ -26,6 +27,7 @@ export class AppInitializer {
       await this.initializeGeminiService()
       await this.initializeWindowService()
       await this.initializeHotkeyService()
+      await this.initializeUpdaterService()
       console.log('アプリケーションの初期化が完了しました')
     } catch (error) {
       console.error('アプリケーションの初期化に失敗しました:', error)
@@ -88,6 +90,18 @@ export class AppInitializer {
     }
   }
 
+  /** アップデートサービスの初期化 */
+  private async initializeUpdaterService(): Promise<void> {
+    try {
+      const updaterService = UpdaterService.getInstance()
+      await updaterService.initialize()
+      console.log('アップデートサービスを初期化しました')
+    } catch (error) {
+      console.error('アップデートサービスの初期化に失敗しました:', error)
+      throw new Error(`アップデートサービス初期化エラー: ${error}`)
+    }
+  }
+
   /** アプリケーションの終了処理 */
   async cleanup(): Promise<void> {
     console.log('アプリケーションのクリーンアップを開始します')
@@ -122,6 +136,13 @@ export class AppInitializer {
       this.geminiService.cleanup()
     } catch (error) {
       console.error('Geminiサービスのクリーンアップエラー:', error)
+    }
+
+    try {
+      const updaterService = UpdaterService.getExistingInstance()
+      await updaterService.cleanup()
+    } catch (error) {
+      console.error('アップデートサービスのクリーンアップエラー:', error)
     }
 
     console.log('アプリケーションのクリーンアップを完了しました')

@@ -13,13 +13,9 @@ Gemini音声認識APIを利用してリアルタイム音声認識を行い、�
 
 ## インストール・使用方法
 
-<!-- リリース版の使用（将来追加予定）
 ### リリース版の使用（推奨）
 
-1. [Releases](https://github.com/Hiroshiba/hiho-cli-audio/releases)から最新版をダウンロード
-2. ダウンロードしたアプリケーションを起動
-3. 設定画面でGemini APIキーを設定
--->
+[GitHub Releases](https://github.com/hiroshiba/hiho-cli-audio/releases)から最新版をダウンロードしてください。
 
 ### 開発版の使用
 
