@@ -36,6 +36,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Zod**: データバリデーション・型安全性
 - **js-yaml**: YAML設定ファイル読み込み
 
+### GitHub Actions自動ビルド・リリースシステム
+
+`.github/workflows/build.yml`で完全自動化されたクロスプラットフォームビルド・リリースシステムを構築
+
+**ワークフロー構成:**
+
+1. **buildジョブ（並行実行）**: 
+   - **Windows**: windows-latest + NSIS installer
+   - **macOS**: macos-latest + DMG + ARM64対応
+   - **Linux**: ubuntu-latest + electronuserland/builderコンテナ + AppImage
+
+2. **promote-releaseジョブ（順次実行）**:
+   - 全ビルド完了後にプレリリースを正式リリースに昇格
+   - Latest状態に自動設定
+
+**主要機能:**
+- **ワンクリックリリース**: `gh workflow run build.yml --field version=1.0.0`
+- **2段階プロセス**: ビルド → パブリッシュ で確実な成果物生成
+- **リトライ機構**: 並行アップロード競合時の自動リトライ（最大3回・段階的待機）
+- **差分アップデート**: electron-builderによる最適化されたインストーラー
+- **自動アップデート対応**: latest.yml自動生成
+
+**実行方法:**
+```bash
+# 新バージョンのリリース（全プラットフォーム自動ビルド・公開）
+gh workflow run build.yml --field version=1.0.0
+```
+
 ## アーキテクチャ設計指針
 
 ### 設定管理

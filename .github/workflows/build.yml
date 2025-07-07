@@ -81,3 +81,16 @@ jobs:
           exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 全プラットフォームのビルド・公開が完了後にプレリリースを正式リリースに昇格
+  promote-release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: <Deploy> プレリリースを正式リリースに昇格
+        run: |
+          gh release edit ${{ github.event.inputs.version }} \
+            --prerelease=false \
+            --latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
