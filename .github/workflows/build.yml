@@ -23,8 +23,10 @@ jobs:
             name: mac
           - os: ubuntu-latest
             name: linux
+            container: electronuserland/builder
 
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
 
     steps:
       - name: <Setup> リポジトリのチェックアウト
