@@ -2,17 +2,20 @@ import { ipcMain, BrowserWindow, clipboard } from 'electron'
 import { promises as fs } from 'node:fs'
 import { AudioProcessor } from './audioProcessor'
 import { GeminiService } from './geminiService'
+import { ConfigService } from './configService'
 import { RecordingData } from './types'
 
 /** 音声関連のIPC通信ハンドラー */
 export class AudioIpcHandler {
   private audioProcessor: AudioProcessor
   private geminiService: GeminiService
+  private configService: ConfigService
   private isRecording: boolean = false
 
   constructor() {
     this.audioProcessor = new AudioProcessor()
     this.geminiService = GeminiService.getInstance()
+    this.configService = ConfigService.getInstance()
     this.setupIpcHandlers()
   }
 
@@ -97,7 +100,11 @@ export class AudioIpcHandler {
       console.log('音声処理完了、音声認識開始')
 
       const geminiClient = this.geminiService.getClient()
-      const transcriptionResult = await geminiClient.transcribe(wavFilePath)
+      const config = await this.configService.loadConfig()
+      const transcriptionResult = await geminiClient.transcribe(
+        wavFilePath,
+        config.vocabulary.entries
+      )
 
       console.log('音声認識完了:', transcriptionResult)
 

@@ -7,6 +7,7 @@ import { validateConfig, validateConfigSafe, DefaultConfig, configToSnakeCase } 
 
 /** 設定ファイル管理サービス */
 export class ConfigService {
+  private static instance: ConfigService
   private readonly configDir: string
   private readonly configFile: string
 
@@ -19,6 +20,14 @@ export class ConfigService {
   static createDefault(): ConfigService {
     const defaultConfigDir = join(homedir(), '.config', 'hiho-cli-audio')
     return new ConfigService(defaultConfigDir)
+  }
+
+  /** シングルトンインスタンスを取得 */
+  static getInstance(): ConfigService {
+    if (!ConfigService.instance) {
+      ConfigService.instance = ConfigService.createDefault()
+    }
+    return ConfigService.instance
   }
 
   /** 設定ファイルの読み込み */

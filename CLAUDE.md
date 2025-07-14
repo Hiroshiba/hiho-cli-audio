@@ -42,7 +42,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ワークフロー構成:**
 
-1. **buildジョブ（並行実行）**: 
+1. **buildジョブ（並行実行）**:
    - **Windows**: windows-latest + NSIS installer
    - **macOS**: macos-latest + DMG + ARM64対応
    - **Linux**: ubuntu-latest + electronuserland/builderコンテナ + AppImage
@@ -52,6 +52,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - Latest状態に自動設定
 
 **主要機能:**
+
 - **ワンクリックリリース**: `gh workflow run build.yml --field version=1.0.0`
 - **2段階プロセス**: ビルド → パブリッシュ で確実な成果物生成
 - **リトライ機構**: 並行アップロード競合時の自動リトライ（最大3回・段階的待機）
@@ -59,6 +60,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **自動アップデート対応**: latest.yml自動生成
 
 **実行方法:**
+
 ```bash
 # 新バージョンのリリース（全プラットフォーム自動ビルド・公開）
 gh workflow run build.yml --field version=1.0.0
@@ -115,8 +117,17 @@ gh workflow run build.yml --field version=1.0.0
 - 関数・クラスには1行のJSDocを記述
 - 変数名・関数名から自明なコメントは書かない
 - **コード内コメントは可能な限り少なくする**（コメントが必要=コードが複雑すぎる証拠）
-- 関数の引数にはデフォルト値を設定しない（設定ファイルのデフォルト値は例外）
-- 関数の引数をオプショナル（?）にしない（使わない引数は削除し、使う引数は必須にする）
+- **関数の引数にはデフォルト値を絶対に設定しない**
+  - `function process(data: string, options: Options = {}): void` ❌ 絶対NG
+  - `function process(data: string, options: Options): void` ✅ 必須引数として定義
+  - 必要な引数は必須とし、不要な引数は削除する
+- **関数の引数をオプショナル（?）にしない**
+  - `function process(data: string, options?: Options): void` ❌ 絶対NG
+  - `function process(data: string, options: Options): void` ✅ 必須引数として定義
+  - 使わない引数は削除し、使う引数は必須にする
+- **設定ファイルでのデフォルト値定義は例外として許可**
+  - `DefaultConfig`オブジェクトや`schemas.ts`でのデフォルト値は許可
+  - 関数の引数のデフォルト値とは別物
 - 型注釈を必須とする
 - **型サポートを極力活用する**
   - `any`や`object`などの抽象的な型を避け、具体的な型を使用
@@ -145,8 +156,8 @@ gh workflow run build.yml --field version=1.0.0
 **防御的プログラミング禁止**
 
 - **起動時のフォールバック処理は禁止**（設定ファイル読み込み失敗時はエラーで停止）
-- **関数・メソッドのデフォルト引数は禁止**（設定ファイルのデフォルト値は例外）
-- **オプショナル引数（?）の使用を避ける**（必要な引数は必須にする）
+- **関数・メソッドのデフォルト引数は絶対禁止**（設定ファイルのデフォルト値定義とは別物）
+- **オプショナル引数（?）の使用を絶対禁止**（必要な引数は必須にする）
 - **switch文・条件分岐でのdefaultケースは適切なエラーにする**
 
 **厳格な初期化規約（絶対遵守）**

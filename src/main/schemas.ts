@@ -46,12 +46,27 @@ export const UiConfigSchema = z
     alwaysOnTop: data.always_on_top
   }))
 
+/** 語彙エントリーのスキーマ */
+export const VocabularyEntrySchema = z.object({
+  reading: z.string().min(1, '読み方は1文字以上で入力してください'),
+  output: z.string().min(1, '認識結果は1文字以上で入力してください'),
+  description: z.string().optional()
+})
+
+/** 語彙設定のスキーマ */
+export const VocabularyConfigSchema = z
+  .object({
+    entries: z.array(VocabularyEntrySchema).default([])
+  })
+  .default({ entries: [] })
+
 /** アプリケーション設定のスキーマ */
 export const ConfigSchema = z.object({
   audio: AudioConfigSchema.default({}),
   hotkey: HotkeyConfigSchema.default({}),
   gemini: GeminiConfigSchema.default({}),
-  ui: UiConfigSchema.default({})
+  ui: UiConfigSchema.default({}),
+  vocabulary: VocabularyConfigSchema.default({})
 })
 
 /** デフォルト設定値（キャメルケース） */
@@ -70,6 +85,20 @@ export const DefaultConfig = {
   },
   ui: {
     alwaysOnTop: true
+  },
+  vocabulary: {
+    entries: [
+      {
+        reading: 'めがしんく',
+        output: 'megathink',
+        description: 'メガシンクと発音してmegathinkと出力'
+      },
+      {
+        reading: 'うるとらしんく',
+        output: 'ultrathink',
+        description: 'ウルトラシンクと発音してultrathinkと出力'
+      }
+    ]
   }
 } as const
 
@@ -90,6 +119,13 @@ export function configToSnakeCase(config: z.infer<typeof ConfigSchema>): {
   ui: {
     always_on_top: boolean
   }
+  vocabulary: {
+    entries: Array<{
+      reading: string
+      output: string
+      description?: string
+    }>
+  }
 } {
   return {
     audio: {
@@ -106,6 +142,9 @@ export function configToSnakeCase(config: z.infer<typeof ConfigSchema>): {
     },
     ui: {
       always_on_top: config.ui.alwaysOnTop
+    },
+    vocabulary: {
+      entries: config.vocabulary.entries
     }
   }
 }

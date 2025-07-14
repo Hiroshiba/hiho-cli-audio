@@ -28,6 +28,22 @@ export interface UiConfig {
   alwaysOnTop: boolean
 }
 
+/** 語彙エントリー */
+export interface VocabularyEntry {
+  /** 読み方（発音） */
+  reading: string
+  /** 認識結果 */
+  output: string
+  /** 説明（オプション） */
+  description?: string
+}
+
+/** 語彙設定 */
+export interface VocabularyConfig {
+  /** 語彙エントリーのリスト */
+  entries: readonly VocabularyEntry[]
+}
+
 /** アプリケーション設定 */
 export interface Config {
   /** 音声録音設定 */
@@ -38,6 +54,8 @@ export interface Config {
   gemini: GeminiConfig
   /** UI設定 */
   ui: UiConfig
+  /** 語彙設定 */
+  vocabulary: VocabularyConfig
 }
 
 /** コスト情報 */

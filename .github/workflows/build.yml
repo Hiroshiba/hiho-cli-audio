@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "バージョン情報（例: 1.0.0）"
+        description: 'バージョン情報（例: 1.0.0）'
         required: true
 
 defaults:
@@ -40,8 +40,8 @@ jobs:
       - name: <Setup> Node.jsとpnpmキャッシュの設定
         uses: actions/setup-node@v4
         with:
-          node-version-file: ".node-version"
-          cache: "pnpm"
+          node-version-file: '.node-version'
+          cache: 'pnpm'
 
       - name: <Setup> 依存関係のインストール
         run: pnpm install
