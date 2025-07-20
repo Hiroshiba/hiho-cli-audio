@@ -3,6 +3,8 @@ import { promises as fs } from 'node:fs'
 import { AudioProcessor } from './audioProcessor'
 import { GeminiService } from './geminiService'
 import { ConfigService } from './configService'
+import { ErrorDialogService } from './errorDialogService'
+import { createError } from '../shared/types/error'
 import { RecordingData } from './types'
 
 /** 音声関連のIPC通信ハンドラー */
@@ -10,12 +12,14 @@ export class AudioIpcHandler {
   private audioProcessor: AudioProcessor
   private geminiService: GeminiService
   private configService: ConfigService
+  private errorDialogService: ErrorDialogService
   private isRecording: boolean = false
 
   constructor() {
     this.audioProcessor = new AudioProcessor()
     this.geminiService = GeminiService.getInstance()
     this.configService = ConfigService.getInstance()
+    this.errorDialogService = ErrorDialogService.getInstance()
     this.setupIpcHandlers()
   }
 
@@ -35,7 +39,11 @@ export class AudioIpcHandler {
 
     const mainWindow = BrowserWindow.getAllWindows()[0]
     if (!mainWindow) {
-      console.error('メインウィンドウが見つかりません')
+      const error = createError(
+        'アプリケーションウィンドウに問題が発生しました',
+        'メインウィンドウが見つかりません'
+      )
+      this.errorDialogService.showErrorDialog(error)
       return
     }
 
@@ -53,7 +61,11 @@ export class AudioIpcHandler {
 
     const mainWindow = BrowserWindow.getAllWindows()[0]
     if (!mainWindow) {
-      console.error('メインウィンドウが見つかりません')
+      const error = createError(
+        'アプリケーションウィンドウに問題が発生しました',
+        'メインウィンドウが見つかりません'
+      )
+      this.errorDialogService.showErrorDialog(error)
       this.isRecording = false
       return
     }
@@ -92,7 +104,11 @@ export class AudioIpcHandler {
 
       const processResult = await this.audioProcessor.processAudioData(recordingData)
       if (!processResult.success) {
-        console.error('音声処理エラー:', processResult.error)
+        const error = createError(
+          '音声ファイルの処理に失敗しました',
+          `音声処理エラー: ${processResult.error}`
+        )
+        this.errorDialogService.showErrorDialog(error)
         return
       }
 
@@ -113,7 +129,12 @@ export class AudioIpcHandler {
         mainWindow.webContents.send('transcription:result', transcriptionResult)
       }
     } catch (error) {
-      console.error('録音データ処理中にエラーが発生しました:', error)
+      const appError = createError(
+        '音声認識処理中に予期しないエラーが発生しました',
+        `録音データ処理エラー: ${error}`,
+        error instanceof Error ? error : undefined
+      )
+      this.errorDialogService.showErrorDialog(appError)
     } finally {
       if (wavFilePath) {
         await fs.unlink(wavFilePath).catch(() => {})
@@ -131,7 +152,12 @@ export class AudioIpcHandler {
       console.log('クリップボードにテキストを書き込みました')
       return true
     } catch (error) {
-      console.error('クリップボードへの書き込みに失敗しました:', error)
+      const appError = createError(
+        'クリップボードへのアクセス権限が拒否されました',
+        `クリップボード書き込みエラー: ${error}`,
+        error instanceof Error ? error : undefined
+      )
+      this.errorDialogService.showErrorDialog(appError)
       return false
     }
   }

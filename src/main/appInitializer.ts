@@ -5,6 +5,8 @@ import { GeminiService } from './geminiService'
 import { HotkeyService } from './hotkeyService'
 import { WindowService } from './windowService'
 import { UpdaterService } from './updaterService'
+import { ErrorDialogService } from './errorDialogService'
+import { createError } from '../shared/types/error'
 
 /** アプリケーションの初期化処理 */
 export class AppInitializer {
@@ -12,12 +14,14 @@ export class AppInitializer {
   private readonly geminiService: GeminiService
   private readonly configIpcHandler: ConfigIpcHandler
   private readonly audioIpcHandler: AudioIpcHandler
+  private readonly errorDialogService: ErrorDialogService
 
   constructor() {
     this.configService = ConfigService.createDefault()
     this.geminiService = GeminiService.getInstance()
     this.configIpcHandler = new ConfigIpcHandler(this.configService)
     this.audioIpcHandler = new AudioIpcHandler()
+    this.errorDialogService = ErrorDialogService.getInstance()
   }
 
   /** アプリケーションの初期化 */
@@ -30,7 +34,12 @@ export class AppInitializer {
       await this.initializeUpdaterService()
       console.log('アプリケーションの初期化が完了しました')
     } catch (error) {
-      console.error('アプリケーションの初期化に失敗しました:', error)
+      const appError = createError(
+        'アプリケーションの初期化に失敗しました。アプリケーションを再起動してください。',
+        `初期化エラー: ${error}`,
+        error instanceof Error ? error : undefined
+      )
+      this.errorDialogService.showErrorDialog(appError)
       throw error
     }
   }
@@ -42,7 +51,12 @@ export class AppInitializer {
       await this.configService.loadConfig()
       console.log('設定ファイル管理サービスを初期化しました')
     } catch (error) {
-      console.error('設定サービスの初期化に失敗しました:', error)
+      const appError = createError(
+        '設定ファイルの読み込みに失敗しました。設定ファイルを確認してください。',
+        `設定サービス初期化エラー: ${error}`,
+        error instanceof Error ? error : undefined
+      )
+      this.errorDialogService.showErrorDialog(appError)
       throw new Error(`設定サービス初期化エラー: ${error}`)
     }
   }
@@ -54,7 +68,12 @@ export class AppInitializer {
       this.geminiService.initialize(config.gemini)
       console.log('Gemini サービスを初期化しました')
     } catch (error) {
-      console.error('Gemini サービスの初期化に失敗しました:', error)
+      const appError = createError(
+        'Gemini API の初期化に失敗しました。APIキーを確認してください。',
+        `Gemini サービス初期化エラー: ${error}`,
+        error instanceof Error ? error : undefined
+      )
+      this.errorDialogService.showErrorDialog(appError)
       throw new Error(`Gemini サービス初期化エラー: ${error}`)
     }
   }
@@ -66,7 +85,12 @@ export class AppInitializer {
       WindowService.getInstance(config)
       console.log('ウィンドウサービスを初期化しました')
     } catch (error) {
-      console.error('ウィンドウサービスの初期化に失敗しました:', error)
+      const appError = createError(
+        'ウィンドウの初期化に失敗しました。',
+        `ウィンドウサービス初期化エラー: ${error}`,
+        error instanceof Error ? error : undefined
+      )
+      this.errorDialogService.showErrorDialog(appError)
       throw new Error(`ウィンドウサービス初期化エラー: ${error}`)
     }
   }
@@ -85,7 +109,12 @@ export class AppInitializer {
       hotkeyService.registerHotkeys()
       console.log('ホットキーサービスを初期化しました')
     } catch (error) {
-      console.error('ホットキーサービスの初期化に失敗しました:', error)
+      const appError = createError(
+        'ホットキーの登録に失敗しました。他のアプリケーションがホットキーを使用している可能性があります。',
+        `ホットキーサービス初期化エラー: ${error}`,
+        error instanceof Error ? error : undefined
+      )
+      this.errorDialogService.showErrorDialog(appError)
       throw new Error(`ホットキーサービス初期化エラー: ${error}`)
     }
   }
@@ -97,7 +126,12 @@ export class AppInitializer {
       await updaterService.initialize()
       console.log('アップデートサービスを初期化しました')
     } catch (error) {
-      console.error('アップデートサービスの初期化に失敗しました:', error)
+      const appError = createError(
+        '自動更新機能の初期化に失敗しました。',
+        `アップデートサービス初期化エラー: ${error}`,
+        error instanceof Error ? error : undefined
+      )
+      this.errorDialogService.showErrorDialog(appError)
       throw new Error(`アップデートサービス初期化エラー: ${error}`)
     }
   }
@@ -123,6 +157,12 @@ export class AppInitializer {
       this.configIpcHandler.unregister()
     } catch (error) {
       console.error('設定IPCハンドラーのクリーンアップエラー:', error)
+    }
+
+    try {
+      this.errorDialogService.cleanup()
+    } catch (error) {
+      console.error('エラーダイアログサービスのクリーンアップエラー:', error)
     }
 
     try {

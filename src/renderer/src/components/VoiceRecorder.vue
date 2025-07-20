@@ -35,14 +35,13 @@
         </div>
       </div>
     </div>
-
-    <div v-if="error" class="error">エラー: {{ error }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { AudioRecorder, type RecordingState } from '../audioRecorder'
+import { createError } from '../../../shared/types/error'
 /** コスト情報 */
 interface CostInfo {
   promptTokens: number
@@ -61,7 +60,6 @@ const state = ref<RecordingState>('idle')
 const duration = ref(0)
 const maxDuration = ref(300)
 const transcriptionResult = ref<TranscriptionResult | null>(null)
-const error = ref<string | null>(null)
 
 const stateText = computed(() => {
   switch (state.value) {
@@ -112,17 +110,22 @@ const handleTranscriptionResult = (_event: unknown, result: TranscriptionResult)
 const handleRecordingStart = async (): Promise<void> => {
   console.log('IPC: 録音開始指示を受信しました')
   if (!recorder.value) {
-    console.error('AudioRecorderが初期化されていません')
+    const appError = createError(
+      '音声録音機能に問題が発生しました',
+      'AudioRecorderが初期化されていません'
+    )
+    await window.api.error.show(appError)
     return
   }
-
-  error.value = null
 
   if (state.value === 'idle') {
     const result = await recorder.value.startRecording()
     if (!result.success) {
-      error.value = result.error
-      console.error('録音開始エラー:', result.error)
+      const appError = createError(
+        'マイクへのアクセス権限が拒否されました。ブラウザまたはシステムの設定からマイクのアクセス許可を有効にしてください。',
+        `録音開始エラー: ${result.error}`
+      )
+      await window.api.error.show(appError)
     } else {
       console.log('録音を開始しました')
     }
@@ -131,10 +134,16 @@ const handleRecordingStart = async (): Promise<void> => {
   }
 }
 
-const handleRecordingStop = (): void => {
+const handleRecordingStop = async (): Promise<void> => {
   console.log('IPC: 録音停止指示を受信しました')
   if (!recorder.value) {
-    console.error('AudioRecorderが初期化されていません')
+    const appError = {
+      category: 'SYSTEM',
+      userMessage: '音声録音機能に問題が発生しました',
+      technicalDetails: 'AudioRecorderが初期化されていません',
+      timestamp: new Date()
+    }
+    await window.api.error.show(appError)
     return
   }
 
@@ -157,10 +166,22 @@ const writeClipboard = async (text: string): Promise<void> => {
       if (success) {
         console.log('IPC経由でクリップボードにコピーしました')
       } else {
-        console.error('IPC経由でのクリップボードコピーに失敗しました')
+        const appError = {
+          category: 'PERMISSION',
+          userMessage: 'クリップボードへのアクセス権限が拒否されました',
+          technicalDetails: 'IPC経由でのクリップボードコピーに失敗しました',
+          timestamp: new Date()
+        }
+        await window.api.error.show(appError)
       }
     } catch (ipcError) {
-      console.error('IPC経由でのクリップボードコピーでエラーが発生しました:', ipcError)
+      const appError = {
+        category: 'SYSTEM',
+        userMessage: 'クリップボードコピー機能でエラーが発生しました',
+        technicalDetails: `IPC経由でのクリップボードコピーエラー: ${ipcError}`,
+        timestamp: new Date()
+      }
+      await window.api.error.show(appError)
     }
   }
 }
@@ -357,16 +378,5 @@ onUnmounted(() => {
   padding: 6px 12px;
   border-radius: 16px;
   border: 1px solid #dadce0;
-}
-
-.error {
-  margin: 20px 0;
-  padding: 16px 20px;
-  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
-  color: #c62828;
-  border-radius: 8px;
-  border: 2px solid #e57373;
-  box-shadow: 0 2px 4px rgba(244, 67, 54, 0.1);
-  font-weight: 500;
 }
 </style>
