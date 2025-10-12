@@ -62,11 +62,11 @@ export const VocabularyConfigSchema = z
 
 /** アプリケーション設定のスキーマ */
 export const ConfigSchema = z.object({
-  audio: AudioConfigSchema.default({}),
-  hotkey: HotkeyConfigSchema.default({}),
-  gemini: GeminiConfigSchema.default({}),
-  ui: UiConfigSchema.default({}),
-  vocabulary: VocabularyConfigSchema.default({})
+  audio: AudioConfigSchema,
+  hotkey: HotkeyConfigSchema,
+  gemini: GeminiConfigSchema,
+  ui: UiConfigSchema,
+  vocabulary: VocabularyConfigSchema
 })
 
 /** デフォルト設定値（キャメルケース） */
