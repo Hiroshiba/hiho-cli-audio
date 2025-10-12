@@ -27,7 +27,6 @@ export const GeminiConfigSchema = z
   .object({
     api_key: z
       .string()
-      .min(1)
       .transform((val) => val.trim())
       .default(''),
     model: z.string().min(1).default('gemini-1.5-flash-latest')

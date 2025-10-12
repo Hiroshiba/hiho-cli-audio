@@ -48,6 +48,16 @@ export class AppInitializer {
   private async initializeConfigService(): Promise<void> {
     try {
       this.configIpcHandler.register()
+
+      const configExists = await this.configService.configExists()
+      if (!configExists) {
+        console.log('設定ファイルが見つかりません。デフォルト設定で作成します...')
+        await this.configService.resetConfig()
+        console.log(
+          `設定ファイルを作成しました: ${this.configService.getConfigPath()}\nGemini APIキーを設定してください。`
+        )
+      }
+
       await this.configService.loadConfig()
       console.log('設定ファイル管理サービスを初期化しました')
     } catch (error) {
