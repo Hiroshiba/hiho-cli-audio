@@ -164,7 +164,7 @@ gh workflow run build.yml --field version=1.0.0
 
 **設定ファイルを読み取り禁止**
 
-- **絶対に設定ファイル（~/.config/hiho-cli-audio/config.yaml）の内容を読み取らない**
+- **コーディング時、絶対に設定ファイル（~/.config/hiho-cli-audio/config.yaml）の内容を読み取らない**
 - **APIキーなど機密情報の流出防止のための徹底ルール**
 - **他のセッションでも必ずこのルールを遵守すること**
 
