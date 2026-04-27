@@ -86,18 +86,7 @@ export const DefaultConfig = {
     alwaysOnTop: true
   },
   vocabulary: {
-    entries: [
-      {
-        reading: 'めがしんく',
-        output: 'megathink',
-        description: 'メガシンクと発音してmegathinkと出力'
-      },
-      {
-        reading: 'うるとらしんく',
-        output: 'ultrathink',
-        description: 'ウルトラシンクと発音してultrathinkと出力'
-      }
-    ]
+    entries: []
   }
 } as const
 
