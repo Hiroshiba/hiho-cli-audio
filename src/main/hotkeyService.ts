@@ -67,27 +67,6 @@ export class HotkeyService {
     throw new Error(`未対応OSのためホットキーを登録できません: ${process.platform}`)
   }
 
-  /** 現在のホットキーを更新 */
-  updateHotkey(newShortcut: string): void {
-    this.unregisterCurrentHotkey()
-
-    try {
-      const isRegistered = globalShortcut.register(newShortcut, () => {
-        this.recordingToggleCallback()
-      })
-
-      if (!isRegistered) {
-        throw new Error(`ホットキー '${newShortcut}' の登録に失敗しました`)
-      }
-
-      this.currentShortcut = newShortcut
-      console.log(`グローバルホットキーを更新しました: ${newShortcut}`)
-    } catch (error) {
-      console.error('ホットキー更新エラー:', error)
-      throw error
-    }
-  }
-
   /** 現在のホットキーを解除 */
   unregisterCurrentHotkey(): void {
     if (this.currentShortcut != null) {
@@ -95,11 +74,6 @@ export class HotkeyService {
       console.log(`グローバルホットキーを解除しました: ${this.currentShortcut}`)
       this.currentShortcut = null
     }
-  }
-
-  /** 現在のホットキー設定を取得 */
-  getCurrentHotkey(): string | null {
-    return this.currentShortcut
   }
 
   /** すべてのホットキーを解除してクリーンアップ */

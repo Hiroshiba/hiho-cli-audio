@@ -1,5 +1,4 @@
 import { ConfigService } from './configService'
-import { ConfigIpcHandler } from './configIpcHandler'
 import { AudioIpcHandler } from './audioIpcHandler'
 import { GeminiService } from './geminiService'
 import { HotkeyService } from './hotkeyService'
@@ -11,14 +10,12 @@ import { createError } from '../shared/types/error'
 export class AppInitializer {
   private readonly configService: ConfigService
   private readonly geminiService: GeminiService
-  private readonly configIpcHandler: ConfigIpcHandler
   private readonly audioIpcHandler: AudioIpcHandler
   private readonly errorDialogService: ErrorDialogService
 
   constructor() {
     this.configService = ConfigService.createDefault()
     this.geminiService = GeminiService.getInstance()
-    this.configIpcHandler = new ConfigIpcHandler(this.configService)
     this.audioIpcHandler = new AudioIpcHandler()
     this.errorDialogService = ErrorDialogService.getInstance()
   }
@@ -45,12 +42,10 @@ export class AppInitializer {
   /** 設定サービスの初期化 */
   private async initializeConfigService(): Promise<void> {
     try {
-      this.configIpcHandler.register()
-
       const configExists = await this.configService.configExists()
       if (!configExists) {
         console.log('設定ファイルが見つかりません。デフォルト設定で作成します...')
-        await this.configService.resetConfig()
+        await this.configService.createDefaultConfigFile()
         console.log(
           `設定ファイルを作成しました: ${this.configService.getConfigPath()}\nGemini APIキーを設定してください。`
         )
@@ -142,12 +137,6 @@ export class AppInitializer {
       this.audioIpcHandler.cleanup()
     } catch (error) {
       console.error('音声IPCハンドラーのクリーンアップエラー:', error)
-    }
-
-    try {
-      this.configIpcHandler.unregister()
-    } catch (error) {
-      console.error('設定IPCハンドラーのクリーンアップエラー:', error)
     }
 
     try {

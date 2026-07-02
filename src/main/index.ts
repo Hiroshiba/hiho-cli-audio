@@ -3,53 +3,49 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { AppInitializer } from './appInitializer'
 import { WindowService } from './windowService'
 
-const appInitializer = new AppInitializer()
+let appInitializer: AppInitializer | null = null
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
+function getAppInitializer(): AppInitializer {
+  if (appInitializer == null) {
+    throw new Error('AppInitializer が初期化されていません')
+  }
+
+  return appInitializer
+}
+
+// Electron の初期化が完了してからアプリケーションサービスを初期化する
 app.whenReady().then(async () => {
-  // Set app user model id for windows
+  // Windows 用のアプリケーションユーザーモデルIDを設定する
   electronApp.setAppUserModelId('com.electron')
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
+  // 開発中はF12によるDevTools操作を有効にし、本番ではリロードショートカットを無効にする
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Initialize application services
+  appInitializer = new AppInitializer()
   await appInitializer.initialize()
 
-  // IPC test
   ipcMain.on('ping', () => console.log('pong'))
 
   app.on('activate', async function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) {
       const { ConfigService } = await import('./configService')
-      const config = await ConfigService.createDefault().loadConfig()
+      const config = await ConfigService.getInstance().loadConfig()
       WindowService.getInstance(config)
     }
   })
 })
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+// macOS以外ではすべてのウィンドウが閉じられたら終了する
 app.on('window-all-closed', async () => {
   if (process.platform !== 'darwin') {
-    await appInitializer.cleanup()
+    await getAppInitializer().cleanup()
     app.quit()
   }
 })
 
-// Handle app quit
+// アプリケーション終了時に各サービスをクリーンアップする
 app.on('before-quit', async () => {
-  await appInitializer.cleanup()
+  await getAppInitializer().cleanup()
 })
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.

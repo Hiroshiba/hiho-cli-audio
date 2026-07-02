@@ -1,13 +1,13 @@
 import { promises as fs } from 'node:fs'
+import { app } from 'electron'
 import { join } from 'node:path'
-import { homedir } from 'node:os'
 import * as yaml from 'js-yaml'
 import { Config } from './types'
 import { validateWritableConfig, validateConfigSafe, DefaultConfig } from './schemas'
 
 /** 設定ファイル管理サービス */
 export class ConfigService {
-  private static instance: ConfigService
+  private static instance: ConfigService | null = null
   private readonly configDir: string
   private readonly configFile: string
 
@@ -18,13 +18,14 @@ export class ConfigService {
 
   /** デフォルト設定ディレクトリでインスタンス作成 */
   static createDefault(): ConfigService {
-    const defaultConfigDir = join(homedir(), '.config', 'hiho-cli-audio')
-    return new ConfigService(defaultConfigDir)
+    const configService = new ConfigService(app.getPath('userData'))
+    ConfigService.instance = configService
+    return configService
   }
 
   /** シングルトンインスタンスを取得 */
   static getInstance(): ConfigService {
-    if (!ConfigService.instance) {
+    if (ConfigService.instance == null) {
       ConfigService.instance = ConfigService.createDefault()
     }
     return ConfigService.instance
@@ -43,8 +44,13 @@ export class ConfigService {
     return validationResult.data
   }
 
-  /** 設定ファイルの保存 */
-  async saveConfig(config: Config): Promise<void> {
+  /** デフォルト設定ファイルを生成 */
+  async createDefaultConfigFile(): Promise<void> {
+    await this.writeConfig(DefaultConfig)
+  }
+
+  /** 設定ファイルを書き込み */
+  private async writeConfig(config: Config): Promise<void> {
     try {
       const validatedConfig = validateWritableConfig(config)
 
@@ -64,15 +70,6 @@ export class ConfigService {
     }
   }
 
-  /** 設定の更新 */
-  async updateConfig(updates: Partial<Config>): Promise<Config> {
-    const currentConfig = await this.loadConfig()
-    const updatedConfig = { ...currentConfig, ...updates }
-
-    await this.saveConfig(updatedConfig)
-    return updatedConfig
-  }
-
   /** 設定ファイルの存在確認 */
   async configExists(): Promise<boolean> {
     try {
@@ -81,12 +78,6 @@ export class ConfigService {
     } catch {
       return false
     }
-  }
-
-  /** 設定ファイルのリセット */
-  async resetConfig(): Promise<Config> {
-    await this.saveConfig(DefaultConfig)
-    return DefaultConfig
   }
 
   /** 設定ファイルのパスを取得 */
