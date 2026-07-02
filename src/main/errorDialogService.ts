@@ -1,12 +1,15 @@
 import { dialog, clipboard } from 'electron'
 import { ipcMain } from 'electron'
 import { AppError, ErrorDialogOptions } from '../shared/types/error'
+import { LoggerService } from './loggerService'
 
 /** エラーダイアログ表示サービス */
 export class ErrorDialogService {
   private static instance: ErrorDialogService
+  private readonly loggerService: LoggerService
 
   private constructor() {
+    this.loggerService = LoggerService.getInstance()
     this.setupIpcHandlers()
   }
 
@@ -43,6 +46,10 @@ export class ErrorDialogService {
     const { title = 'エラー', showDetails = true, showCopyButton = true } = options
 
     console.error('エラー発生:', error.technicalDetails, error.originalError)
+    this.loggerService.error('エラー発生', {
+      technicalDetails: error.technicalDetails,
+      originalError: error.originalError
+    })
 
     const buttons = this.createButtons(showCopyButton)
     const detailText = showDetails ? this.formatDetailText(error) : undefined
@@ -63,6 +70,7 @@ export class ErrorDialogService {
       }
     } catch (dialogError) {
       console.error('エラーダイアログの表示に失敗しました:', dialogError)
+      this.loggerService.error('エラーダイアログの表示に失敗しました', dialogError)
     }
   }
 
@@ -98,6 +106,7 @@ export class ErrorDialogService {
       const errorText = this.formatErrorForClipboard(error)
       clipboard.writeText(errorText)
       console.log('エラー詳細をクリップボードにコピーしました')
+      this.loggerService.info('エラー詳細をクリップボードにコピーしました')
 
       await dialog.showMessageBox({
         type: 'info',
@@ -107,6 +116,7 @@ export class ErrorDialogService {
       })
     } catch (copyError) {
       console.error('クリップボードへのコピーに失敗しました:', copyError)
+      this.loggerService.error('エラー詳細のクリップボードコピーに失敗しました', copyError)
 
       await dialog.showMessageBox({
         type: 'warning',
@@ -154,6 +164,7 @@ export class ErrorDialogService {
       await dialog.showErrorBox('重大なエラー', message)
     } catch (error) {
       console.error('緊急エラーダイアログの表示に失敗しました:', error)
+      this.loggerService.error('緊急エラーダイアログの表示に失敗しました', error)
     }
   }
 

@@ -4,6 +4,7 @@ import { AudioProcessor } from './audioProcessor'
 import { GeminiService } from './geminiService'
 import { ConfigService } from './configService'
 import { ErrorDialogService } from './errorDialogService'
+import { LoggerService } from './loggerService'
 import { createError } from '../shared/types/error'
 import { RecordingData } from './types'
 
@@ -13,6 +14,7 @@ export class AudioIpcHandler {
   private geminiService: GeminiService
   private configService: ConfigService
   private errorDialogService: ErrorDialogService
+  private loggerService: LoggerService
   private isRecording: boolean = false
 
   constructor() {
@@ -20,6 +22,7 @@ export class AudioIpcHandler {
     this.geminiService = GeminiService.getInstance()
     this.configService = ConfigService.getInstance()
     this.errorDialogService = ErrorDialogService.getInstance()
+    this.loggerService = LoggerService.getInstance()
     this.setupIpcHandlers()
   }
 
@@ -34,6 +37,7 @@ export class AudioIpcHandler {
   startRecording(): void {
     if (this.isRecording) {
       console.log('録音は既に開始されています')
+      this.loggerService.info('録音は既に開始されています')
       return
     }
 
@@ -44,18 +48,21 @@ export class AudioIpcHandler {
         'メインウィンドウが見つかりません'
       )
       this.errorDialogService.showErrorDialog(error)
+      this.loggerService.error('録音開始時にメインウィンドウが見つかりません', error)
       return
     }
 
     this.isRecording = true
     mainWindow.webContents.send('recording:start')
     console.log('録音開始指示を送信しました')
+    this.loggerService.info('録音開始指示を送信しました')
   }
 
   /** 録音停止 */
   stopRecording(): void {
     if (!this.isRecording) {
       console.log('録音は開始されていません')
+      this.loggerService.info('録音は開始されていません')
       return
     }
 
@@ -66,6 +73,7 @@ export class AudioIpcHandler {
         'メインウィンドウが見つかりません'
       )
       this.errorDialogService.showErrorDialog(error)
+      this.loggerService.error('録音停止時にメインウィンドウが見つかりません', error)
       this.isRecording = false
       return
     }
@@ -73,6 +81,7 @@ export class AudioIpcHandler {
     this.isRecording = false
     mainWindow.webContents.send('recording:stop')
     console.log('録音停止指示を送信しました')
+    this.loggerService.info('録音停止指示を送信しました')
   }
 
   /** 録音トグル */
@@ -99,6 +108,9 @@ export class AudioIpcHandler {
       console.log('WebM音声データを受信しました:', {
         dataSize: recordingData.webmData.length
       })
+      this.loggerService.infoWithDetails('WebM音声データを受信しました', {
+        dataSize: recordingData.webmData.length
+      })
 
       this.isRecording = false
 
@@ -109,17 +121,23 @@ export class AudioIpcHandler {
           `音声処理エラー: ${processResult.error}`
         )
         this.errorDialogService.showErrorDialog(error)
+        this.loggerService.error('音声ファイルの処理に失敗しました', processResult.error)
         return
       }
 
       wavFilePath = processResult.data
       console.log('音声処理完了、音声認識開始')
+      this.loggerService.info('音声処理完了、音声認識開始')
 
       const geminiClient = this.geminiService.getClient()
       const config = await this.configService.loadConfig()
       const transcriptionResult = await geminiClient.transcribe(wavFilePath, config.vocabulary)
 
       console.log('音声認識完了:', transcriptionResult)
+      this.loggerService.infoWithDetails('音声認識完了', {
+        textLength: transcriptionResult.text.length,
+        costInfo: transcriptionResult.costInfo
+      })
 
       const mainWindow = BrowserWindow.getAllWindows()[0]
       if (mainWindow) {
@@ -132,9 +150,12 @@ export class AudioIpcHandler {
         error instanceof Error ? error : undefined
       )
       this.errorDialogService.showErrorDialog(appError)
+      this.loggerService.error('録音データ処理中に予期しないエラーが発生しました', error)
     } finally {
-      if (wavFilePath) {
-        await fs.unlink(wavFilePath).catch(() => {})
+      if (wavFilePath != null) {
+        await fs.unlink(wavFilePath).catch((error) => {
+          this.loggerService.error('一時WAVファイルの削除に失敗しました', error)
+        })
       }
     }
   }
@@ -147,6 +168,7 @@ export class AudioIpcHandler {
     try {
       clipboard.writeText(text)
       console.log('クリップボードにテキストを書き込みました')
+      this.loggerService.info('クリップボードにテキストを書き込みました')
       return true
     } catch (error) {
       const appError = createError(
@@ -155,6 +177,7 @@ export class AudioIpcHandler {
         error instanceof Error ? error : undefined
       )
       this.errorDialogService.showErrorDialog(appError)
+      this.loggerService.error('クリップボードへの書き込みに失敗しました', error)
       return false
     }
   }

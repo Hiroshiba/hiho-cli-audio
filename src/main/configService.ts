@@ -4,14 +4,18 @@ import { join } from 'node:path'
 import * as yaml from 'js-yaml'
 import { Config } from './types'
 import { validateWritableConfig, validateConfigSafe, DefaultConfig } from './schemas'
+import { writeFileAtomic } from './atomicFile'
+import { LoggerService } from './loggerService'
 
 /** 設定ファイル管理サービス */
 export class ConfigService {
   private static instance: ConfigService | null = null
+  private readonly loggerService: LoggerService
   private readonly configDir: string
   private readonly configFile: string
 
   constructor(configDir: string) {
+    this.loggerService = LoggerService.getInstance()
     this.configDir = configDir
     this.configFile = join(this.configDir, 'config.yaml')
   }
@@ -62,10 +66,12 @@ export class ConfigService {
         forceQuotes: false
       })
 
-      await fs.writeFile(this.configFile, yamlData, 'utf-8')
+      await writeFileAtomic(this.configFile, yamlData)
       console.log('設定ファイルを保存しました:', this.configFile)
+      this.loggerService.infoWithDetails('設定ファイルを保存しました', this.configFile)
     } catch (error) {
       console.error('設定ファイルの保存に失敗しました:', error)
+      this.loggerService.error('設定ファイルの保存に失敗しました', error)
       throw error
     }
   }

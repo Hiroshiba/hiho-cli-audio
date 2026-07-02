@@ -2,6 +2,10 @@ import { BrowserWindow, shell } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { Config } from './types'
+import { StateService } from './stateService'
+import { LoggerService } from './loggerService'
+
+const MAIN_WINDOW_STATE_NAME = 'main'
 
 /** ウィンドウ管理サービス
  *
@@ -11,9 +15,13 @@ export class WindowService {
   private static instance: WindowService
   private readonly mainWindow: BrowserWindow
   private readonly config: Config
+  private readonly loggerService: LoggerService
+  private readonly stateService: StateService
 
   private constructor(config: Config) {
     this.config = config
+    this.loggerService = LoggerService.getInstance()
+    this.stateService = StateService.getInstance()
     this.mainWindow = this.createWindow()
   }
 
@@ -51,6 +59,9 @@ export class WindowService {
         sandbox: false
       }
     })
+
+    this.restoreWindowBounds(window)
+    this.setupWindowStatePersistence(window)
 
     // ウィンドウが準備できたら表示
     window.on('ready-to-show', () => {
@@ -104,6 +115,7 @@ export class WindowService {
       this.disableAlwaysOnTop()
     }
     console.log('最前面表示設定を適用しました:', this.config.app.alwaysOnTop)
+    this.loggerService.infoWithDetails('最前面表示設定を適用しました', this.config.app.alwaysOnTop)
   }
 
   /** メインウィンドウを取得 */
@@ -114,5 +126,44 @@ export class WindowService {
   /** サービスのクリーンアップ */
   cleanup(): void {
     this.mainWindow.close()
+  }
+
+  private restoreWindowBounds(window: BrowserWindow): void {
+    void this.stateService
+      .loadWindowBounds(MAIN_WINDOW_STATE_NAME)
+      .then((result) => {
+        if (result.found) {
+          window.setBounds(result.bounds)
+          this.loggerService.infoWithDetails('ウィンドウ位置を復元しました', result.bounds)
+        }
+      })
+      .catch((error) => {
+        console.error('ウィンドウ位置の復元に失敗しました:', error)
+        this.loggerService.error('ウィンドウ位置の復元に失敗しました', error)
+      })
+  }
+
+  private setupWindowStatePersistence(window: BrowserWindow): void {
+    window.on('moved', () => {
+      this.saveWindowBounds(window)
+    })
+    window.on('resized', () => {
+      this.saveWindowBounds(window)
+    })
+    window.on('close', () => {
+      this.saveWindowBounds(window)
+    })
+  }
+
+  private saveWindowBounds(window: BrowserWindow): void {
+    if (window.isDestroyed()) {
+      return
+    }
+
+    const bounds = window.getBounds()
+    void this.stateService.saveWindowBounds(MAIN_WINDOW_STATE_NAME, bounds).catch((error) => {
+      console.error('ウィンドウ位置の保存に失敗しました:', error)
+      this.loggerService.error('ウィンドウ位置の保存に失敗しました', error)
+    })
   }
 }

@@ -1,14 +1,17 @@
 import { globalShortcut } from 'electron'
 import { HotkeysConfig } from './types'
+import { LoggerService } from './loggerService'
 
 /** ホットキーサービス（シングルトン） */
 export class HotkeyService {
   private static instance: HotkeyService | null = null
+  private readonly loggerService: LoggerService
   private readonly config: HotkeysConfig
   private readonly recordingToggleCallback: () => void
   private currentShortcut: string | null = null
 
   private constructor(config: HotkeysConfig, recordingToggleCallback: () => void) {
+    this.loggerService = LoggerService.getInstance()
     this.config = config
     this.recordingToggleCallback = recordingToggleCallback
   }
@@ -49,8 +52,10 @@ export class HotkeyService {
 
       this.currentShortcut = shortcut
       console.log(`グローバルホットキーを登録しました: ${shortcut}`)
+      this.loggerService.infoWithDetails('グローバルホットキーを登録しました', shortcut)
     } catch (error) {
       console.error('ホットキー登録エラー:', error)
+      this.loggerService.error('ホットキー登録に失敗しました', error)
       throw error
     }
   }
@@ -72,6 +77,7 @@ export class HotkeyService {
     if (this.currentShortcut != null) {
       globalShortcut.unregister(this.currentShortcut)
       console.log(`グローバルホットキーを解除しました: ${this.currentShortcut}`)
+      this.loggerService.infoWithDetails('グローバルホットキーを解除しました', this.currentShortcut)
       this.currentShortcut = null
     }
   }
@@ -81,5 +87,6 @@ export class HotkeyService {
     this.unregisterCurrentHotkey()
     globalShortcut.unregisterAll()
     console.log('HotkeyService をクリーンアップしました')
+    this.loggerService.info('HotkeyService をクリーンアップしました')
   }
 }
