@@ -98,12 +98,12 @@ export class WindowService {
 
   /** 設定に基づいて最前面表示を適用 */
   private applyAlwaysOnTopSetting(): void {
-    if (this.config.ui.alwaysOnTop) {
+    if (this.config.app.alwaysOnTop) {
       this.enableAlwaysOnTop()
     } else {
       this.disableAlwaysOnTop()
     }
-    console.log('最前面表示設定を適用しました:', this.config.ui.alwaysOnTop)
+    console.log('最前面表示設定を適用しました:', this.config.app.alwaysOnTop)
   }
 
   /** メインウィンドウを取得 */

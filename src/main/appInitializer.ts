@@ -73,7 +73,7 @@ export class AppInitializer {
   private async initializeGeminiService(): Promise<void> {
     try {
       const config = await this.configService.loadConfig()
-      this.geminiService.initialize(config.gemini)
+      this.geminiService.initialize(config.transcription.gemini)
       console.log('Gemini サービスを初期化しました')
     } catch (error) {
       const appError = createError(
@@ -113,7 +113,7 @@ export class AppInitializer {
         this.audioIpcHandler.toggleRecording()
       }
 
-      const hotkeyService = HotkeyService.getInstance(config.hotkey, recordingToggleCallback)
+      const hotkeyService = HotkeyService.getInstance(config.hotkeys, recordingToggleCallback)
       hotkeyService.registerHotkeys()
       console.log('ホットキーサービスを初期化しました')
     } catch (error) {

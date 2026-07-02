@@ -16,14 +16,14 @@ export class ConfigIpcHandler {
     ipcMain.handle('config:update', async (_, updates: Partial<Config>): Promise<Config> => {
       const oldConfig = await this.configService.loadConfig()
       const newConfig = await this.configService.updateConfig(updates)
+      const oldShortcut = this.getToggleRecordingHotkey(oldConfig)
+      const newShortcut = this.getToggleRecordingHotkey(newConfig)
 
-      if (updates.hotkey && oldConfig.hotkey.recordToggle !== newConfig.hotkey.recordToggle) {
+      if (updates.hotkeys != null && oldShortcut !== newShortcut) {
         try {
           const hotkeyService = HotkeyService.getExistingInstance()
-          hotkeyService.updateHotkey(newConfig.hotkey.recordToggle)
-          console.log(
-            `ホットキーを更新しました: ${oldConfig.hotkey.recordToggle} → ${newConfig.hotkey.recordToggle}`
-          )
+          hotkeyService.updateHotkey(newShortcut)
+          console.log(`ホットキーを更新しました: ${oldShortcut} → ${newShortcut}`)
         } catch (error) {
           console.error('ホットキー更新エラー:', error)
         }
@@ -35,14 +35,14 @@ export class ConfigIpcHandler {
     ipcMain.handle('config:reset', async (): Promise<Config> => {
       const oldConfig = await this.configService.loadConfig()
       const newConfig = await this.configService.resetConfig()
+      const oldShortcut = this.getToggleRecordingHotkey(oldConfig)
+      const newShortcut = this.getToggleRecordingHotkey(newConfig)
 
-      if (oldConfig.hotkey.recordToggle !== newConfig.hotkey.recordToggle) {
+      if (oldShortcut !== newShortcut) {
         try {
           const hotkeyService = HotkeyService.getExistingInstance()
-          hotkeyService.updateHotkey(newConfig.hotkey.recordToggle)
-          console.log(
-            `ホットキーをリセットしました: ${oldConfig.hotkey.recordToggle} → ${newConfig.hotkey.recordToggle}`
-          )
+          hotkeyService.updateHotkey(newShortcut)
+          console.log(`ホットキーをリセットしました: ${oldShortcut} → ${newShortcut}`)
         } catch (error) {
           console.error('ホットキーリセットエラー:', error)
         }
@@ -67,5 +67,17 @@ export class ConfigIpcHandler {
     ipcMain.removeAllListeners('config:reset')
     ipcMain.removeAllListeners('config:exists')
     ipcMain.removeAllListeners('config:path')
+  }
+
+  private getToggleRecordingHotkey(config: Config): string {
+    if (process.platform === 'win32') {
+      return config.hotkeys.toggleRecording.windows
+    }
+
+    if (process.platform === 'darwin') {
+      return config.hotkeys.toggleRecording.macos
+    }
+
+    throw new Error(`未対応OSのためホットキーを取得できません: ${process.platform}`)
   }
 }

@@ -1,18 +1,31 @@
-/** 音声録音設定 */
-export interface AudioConfig {
-  /** サンプリングレート */
-  sampleRate: number
-  /** チャンネル数 */
-  channels: number
-  /** 最大録音時間（秒） */
-  maxDuration: number
+/** アプリケーション設定 */
+export interface AppConfig {
+  /** 状態ウィンドウと履歴ウィンドウを最前面に表示するか */
+  alwaysOnTop: boolean
+}
+
+/** 録音トグルホットキー設定 */
+export interface ToggleRecordingHotkeys {
+  /** Windows用ホットキー */
+  windows: string
+  /** macOS用ホットキー */
+  macos: string
 }
 
 /** ホットキー設定 */
-export interface HotkeyConfig {
-  /** 録音開始/停止切り替え */
-  recordToggle: string
+export interface HotkeysConfig {
+  /** 録音開始と停止の切り替え */
+  toggleRecording: ToggleRecordingHotkeys
 }
+
+/** 録音設定 */
+export interface RecordingConfig {
+  /** 自動停止までの秒数 */
+  autoStopSeconds: number
+}
+
+/** 文字起こしプロバイダー */
+export type TranscriptionProvider = 'gemini'
 
 /** Gemini API設定 */
 export interface GeminiConfig {
@@ -22,40 +35,68 @@ export interface GeminiConfig {
   model: string
 }
 
-/** UI設定 */
-export interface UiConfig {
-  /** 最前面表示を有効にするか */
-  alwaysOnTop: boolean
+/** 文字起こし設定 */
+export interface TranscriptionConfig {
+  /** 文字起こしプロバイダー */
+  provider: TranscriptionProvider
+  /** Gemini API設定 */
+  gemini: GeminiConfig
+  /** 認識言語 */
+  language: string
+  /** 発話をできるだけ保持するか */
+  preserveSpeechAsMuchAsPossible: boolean
+}
+
+/** 履歴設定 */
+export interface HistoryConfig {
+  /** 保持する最大件数 */
+  maxItems: number
+}
+
+/** 状態ウィンドウ設定 */
+export interface StatusWindowConfig {
+  /** 初期表示位置 */
+  initialPosition: 'top-right-offset'
+}
+
+/** 履歴ウィンドウ設定 */
+export interface HistoryWindowConfig {
+  /** 横幅を狭めた表示にするか */
+  narrow: boolean
+}
+
+/** ウィンドウ設定 */
+export interface WindowsConfig {
+  /** 状態ウィンドウ設定 */
+  status: StatusWindowConfig
+  /** 履歴ウィンドウ設定 */
+  history: HistoryWindowConfig
 }
 
 /** 語彙エントリー */
 export interface VocabularyEntry {
-  /** 読み方（発音） */
+  /** 読み方 */
   reading: string
-  /** 認識結果 */
+  /** 出力表記 */
   output: string
-  /** 説明（オプション） */
-  description?: string
-}
-
-/** 語彙設定 */
-export interface VocabularyConfig {
-  /** 語彙エントリーのリスト */
-  entries: readonly VocabularyEntry[]
 }
 
 /** アプリケーション設定 */
 export interface Config {
-  /** 音声録音設定 */
-  audio: AudioConfig
+  /** アプリケーション設定 */
+  app: AppConfig
   /** ホットキー設定 */
-  hotkey: HotkeyConfig
-  /** Gemini API設定 */
-  gemini: GeminiConfig
-  /** UI設定 */
-  ui: UiConfig
-  /** 語彙設定 */
-  vocabulary: VocabularyConfig
+  hotkeys: HotkeysConfig
+  /** 録音設定 */
+  recording: RecordingConfig
+  /** 文字起こし設定 */
+  transcription: TranscriptionConfig
+  /** 履歴設定 */
+  history: HistoryConfig
+  /** ウィンドウ設定 */
+  windows: WindowsConfig
+  /** カスタム語彙 */
+  vocabulary: readonly VocabularyEntry[]
 }
 
 /** コスト情報 */
@@ -64,7 +105,7 @@ export interface CostInfo {
   promptTokens: number
   /** 出力使用トークン数 */
   outputTokens: number
-  /** 推定コスト（USD） */
+  /** 推定コスト */
   costUsd: number
 }
 
@@ -82,7 +123,7 @@ export interface RecordingData {
   webmData: Uint8Array
 }
 
-/** Result型 - 成功とエラーを表現 */
+/** Result型 */
 export type Result<T, E = Error> = { success: true; data: T } | { success: false; error: E }
 
 /** 録音結果 */

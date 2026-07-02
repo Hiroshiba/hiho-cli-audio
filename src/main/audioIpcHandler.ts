@@ -117,10 +117,7 @@ export class AudioIpcHandler {
 
       const geminiClient = this.geminiService.getClient()
       const config = await this.configService.loadConfig()
-      const transcriptionResult = await geminiClient.transcribe(
-        wavFilePath,
-        config.vocabulary.entries
-      )
+      const transcriptionResult = await geminiClient.transcribe(wavFilePath, config.vocabulary)
 
       console.log('音声認識完了:', transcriptionResult)
 

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import * as yaml from 'js-yaml'
 import { Config } from './types'
-import { validateConfig, validateConfigSafe, DefaultConfig, configToSnakeCase } from './schemas'
+import { validateWritableConfig, validateConfigSafe, DefaultConfig } from './schemas'
 
 /** 設定ファイル管理サービス */
 export class ConfigService {
@@ -36,7 +36,7 @@ export class ConfigService {
     const parsedConfig = yaml.load(configData) as unknown
 
     const validationResult = validateConfigSafe(parsedConfig)
-    if (!validationResult.success || !validationResult.data) {
+    if (!validationResult.success) {
       throw new Error(`設定ファイルの検証に失敗しました: ${validationResult.error}`)
     }
 
@@ -46,11 +46,10 @@ export class ConfigService {
   /** 設定ファイルの保存 */
   async saveConfig(config: Config): Promise<void> {
     try {
-      const validatedConfig = validateConfig(config)
-      const snakeCaseConfig = configToSnakeCase(validatedConfig)
+      const validatedConfig = validateWritableConfig(config)
 
       await fs.mkdir(this.configDir, { recursive: true })
-      const yamlData = yaml.dump(snakeCaseConfig, {
+      const yamlData = yaml.dump(validatedConfig, {
         indent: 2,
         lineWidth: 120,
         quotingType: '"',
