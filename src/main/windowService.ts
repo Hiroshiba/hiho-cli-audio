@@ -17,6 +17,7 @@ export class WindowService {
   private readonly config: Config
   private readonly loggerService: LoggerService
   private readonly stateService: StateService
+  private isQuitting = false
 
   private constructor(config: Config) {
     this.config = config
@@ -123,9 +124,27 @@ export class WindowService {
     return this.mainWindow
   }
 
+  /** 履歴ウィンドウを開く */
+  openHistoryWindow(): void {
+    if (this.mainWindow.isDestroyed()) {
+      throw new Error('メインウィンドウが破棄されているため履歴ウィンドウを開けません')
+    }
+
+    if (this.mainWindow.isMinimized()) {
+      this.mainWindow.restore()
+    }
+
+    this.mainWindow.show()
+    this.mainWindow.focus()
+  }
+
   /** サービスのクリーンアップ */
   cleanup(): void {
-    this.mainWindow.close()
+    this.isQuitting = true
+
+    if (!this.mainWindow.isDestroyed()) {
+      this.mainWindow.close()
+    }
   }
 
   private restoreWindowBounds(window: BrowserWindow): void {
@@ -150,8 +169,15 @@ export class WindowService {
     window.on('resized', () => {
       this.saveWindowBounds(window)
     })
-    window.on('close', () => {
+    window.on('close', (event) => {
       this.saveWindowBounds(window)
+
+      if (this.isQuitting) {
+        return
+      }
+
+      event.preventDefault()
+      window.hide()
     })
   }
 

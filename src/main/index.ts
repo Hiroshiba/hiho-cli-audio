@@ -1,22 +1,30 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { AppInitializer } from './appInitializer'
-import { WindowService } from './windowService'
 
 let appInitializer: AppInitializer | null = null
+let cleanupPromise: Promise<void> | null = null
 
-function getAppInitializer(): AppInitializer {
+function cleanupApplication(): Promise<void> {
   if (appInitializer == null) {
-    throw new Error('AppInitializer が初期化されていません')
+    return Promise.resolve()
   }
 
-  return appInitializer
+  if (cleanupPromise == null) {
+    cleanupPromise = appInitializer.cleanup()
+  }
+
+  return cleanupPromise
 }
 
 // Electron の初期化が完了してからアプリケーションサービスを初期化する
 app.whenReady().then(async () => {
   // Windows 用のアプリケーションユーザーモデルIDを設定する
   electronApp.setAppUserModelId('com.electron')
+
+  if (process.platform === 'darwin' && app.dock != null) {
+    app.dock.hide()
+  }
 
   // 開発中はF12によるDevTools操作を有効にし、本番ではリロードショートカットを無効にする
   app.on('browser-window-created', (_, window) => {
@@ -27,25 +35,14 @@ app.whenReady().then(async () => {
   await appInitializer.initialize()
 
   ipcMain.on('ping', () => console.log('pong'))
-
-  app.on('activate', async function () {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      const { ConfigService } = await import('./configService')
-      const config = await ConfigService.getInstance().loadConfig()
-      WindowService.getInstance(config)
-    }
-  })
 })
 
-// macOS以外ではすべてのウィンドウが閉じられたら終了する
-app.on('window-all-closed', async () => {
-  if (process.platform !== 'darwin') {
-    await getAppInitializer().cleanup()
-    app.quit()
-  }
+// ウィンドウを閉じてもトレイ常駐を継続する
+app.on('window-all-closed', () => {
+  console.log('すべてのウィンドウが閉じられました。トレイ常駐を継続します')
 })
 
 // アプリケーション終了時に各サービスをクリーンアップする
 app.on('before-quit', async () => {
-  await getAppInitializer().cleanup()
+  await cleanupApplication()
 })

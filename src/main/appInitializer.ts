@@ -5,6 +5,7 @@ import { HotkeyService } from './hotkeyService'
 import { WindowService } from './windowService'
 import { ErrorDialogService } from './errorDialogService'
 import { LoggerService } from './loggerService'
+import { TrayService } from './trayService'
 import { createError } from '../shared/types/error'
 
 /** アプリケーションの初期化処理 */
@@ -14,6 +15,7 @@ export class AppInitializer {
   private readonly audioIpcHandler: AudioIpcHandler
   private readonly errorDialogService: ErrorDialogService
   private readonly loggerService: LoggerService
+  private readonly trayService: TrayService
 
   constructor() {
     this.loggerService = LoggerService.getInstance()
@@ -21,6 +23,7 @@ export class AppInitializer {
     this.geminiService = GeminiService.getInstance()
     this.audioIpcHandler = new AudioIpcHandler()
     this.errorDialogService = ErrorDialogService.getInstance()
+    this.trayService = TrayService.getInstance()
   }
 
   /** アプリケーションの初期化 */
@@ -29,6 +32,7 @@ export class AppInitializer {
       await this.initializeConfigService()
       await this.initializeGeminiService()
       await this.initializeWindowService()
+      this.initializeTrayService()
       await this.initializeHotkeyService()
       console.log('アプリケーションの初期化が完了しました')
       this.loggerService.info('アプリケーションの初期化が完了しました')
@@ -114,6 +118,24 @@ export class AppInitializer {
     }
   }
 
+  /** トレイ常駐サービスの初期化 */
+  private initializeTrayService(): void {
+    try {
+      this.trayService.initialize()
+      console.log('トレイ常駐サービスを初期化しました')
+      this.loggerService.info('トレイ常駐サービスを初期化しました')
+    } catch (error) {
+      this.loggerService.error('トレイ常駐サービスの初期化に失敗しました', error)
+      const appError = createError(
+        'トレイ常駐の初期化に失敗しました。',
+        `トレイ常駐サービス初期化エラー: ${error}`,
+        error instanceof Error ? error : undefined
+      )
+      this.errorDialogService.showErrorDialog(appError)
+      throw new Error(`トレイ常駐サービス初期化エラー: ${error}`)
+    }
+  }
+
   /** ホットキーサービスの初期化 */
   private async initializeHotkeyService(): Promise<void> {
     try {
@@ -166,6 +188,13 @@ export class AppInitializer {
     } catch (error) {
       console.error('エラーダイアログサービスのクリーンアップエラー:', error)
       this.loggerService.error('エラーダイアログサービスのクリーンアップに失敗しました', error)
+    }
+
+    try {
+      this.trayService.cleanup()
+    } catch (error) {
+      console.error('トレイ常駐サービスのクリーンアップエラー:', error)
+      this.loggerService.error('トレイ常駐サービスのクリーンアップに失敗しました', error)
     }
 
     try {
