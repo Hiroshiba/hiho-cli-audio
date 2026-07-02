@@ -34,9 +34,3 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
-publish:
-  provider: github
-  owner: hiroshiba
-  repo: hiho-cli-audio
-  vPrefixedTagName: false
-  releaseType: prerelease

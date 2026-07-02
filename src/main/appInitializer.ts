@@ -4,7 +4,6 @@ import { AudioIpcHandler } from './audioIpcHandler'
 import { GeminiService } from './geminiService'
 import { HotkeyService } from './hotkeyService'
 import { WindowService } from './windowService'
-import { UpdaterService } from './updaterService'
 import { ErrorDialogService } from './errorDialogService'
 import { createError } from '../shared/types/error'
 
@@ -31,7 +30,6 @@ export class AppInitializer {
       await this.initializeGeminiService()
       await this.initializeWindowService()
       await this.initializeHotkeyService()
-      await this.initializeUpdaterService()
       console.log('アプリケーションの初期化が完了しました')
     } catch (error) {
       const appError = createError(
@@ -129,23 +127,6 @@ export class AppInitializer {
     }
   }
 
-  /** アップデートサービスの初期化 */
-  private async initializeUpdaterService(): Promise<void> {
-    try {
-      const updaterService = UpdaterService.getInstance()
-      await updaterService.initialize()
-      console.log('アップデートサービスを初期化しました')
-    } catch (error) {
-      const appError = createError(
-        '自動更新機能の初期化に失敗しました。',
-        `アップデートサービス初期化エラー: ${error}`,
-        error instanceof Error ? error : undefined
-      )
-      this.errorDialogService.showErrorDialog(appError)
-      throw new Error(`アップデートサービス初期化エラー: ${error}`)
-    }
-  }
-
   /** アプリケーションの終了処理 */
   async cleanup(): Promise<void> {
     console.log('アプリケーションのクリーンアップを開始します')
@@ -186,13 +167,6 @@ export class AppInitializer {
       this.geminiService.cleanup()
     } catch (error) {
       console.error('Geminiサービスのクリーンアップエラー:', error)
-    }
-
-    try {
-      const updaterService = UpdaterService.getExistingInstance()
-      await updaterService.cleanup()
-    } catch (error) {
-      console.error('アップデートサービスのクリーンアップエラー:', error)
     }
 
     console.log('アプリケーションのクリーンアップを完了しました')
