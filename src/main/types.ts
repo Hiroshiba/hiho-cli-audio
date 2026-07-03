@@ -131,6 +131,14 @@ export interface ProcessedAudioData {
   wavFilePath: string
 }
 
+/** 状態ウィンドウ表示状態 */
+export type StatusWindowState =
+  | { kind: 'idle'; processingJobCount: number }
+  | { kind: 'recording'; recordingStartedAt: string; processingJobCount: number }
+  | { kind: 'transcribing'; processingJobCount: number }
+  | { kind: 'completed'; message: string; processingJobCount: number }
+  | { kind: 'failed'; message: string; processingJobCount: number }
+
 /** Result型 */
 export type Result<T, E = Error> = { success: true; data: T } | { success: false; error: E }
 
