@@ -1,10 +1,12 @@
-import { ipcMain, BrowserWindow, clipboard } from 'electron'
+import { clipboard, ipcMain } from 'electron'
+import type { BrowserWindow } from 'electron'
 import { promises as fs } from 'node:fs'
 import { AudioProcessor } from './audioProcessor'
 import { GeminiService } from './geminiService'
 import { ConfigService } from './configService'
 import { ErrorDialogService } from './errorDialogService'
 import { LoggerService } from './loggerService'
+import { WindowService } from './windowService'
 import { createError } from '../shared/types/error'
 import { RecordingData } from './types'
 
@@ -41,19 +43,13 @@ export class AudioIpcHandler {
       return
     }
 
-    const mainWindow = BrowserWindow.getAllWindows()[0]
-    if (!mainWindow) {
-      const error = createError(
-        'アプリケーションウィンドウに問題が発生しました',
-        'メインウィンドウが見つかりません'
-      )
-      this.errorDialogService.showErrorDialog(error)
-      this.loggerService.error('録音開始時にメインウィンドウが見つかりません', error)
+    const recordingWindow = this.getRecordingWindowForOperation('録音開始')
+    if (recordingWindow == null) {
       return
     }
 
     this.isRecording = true
-    mainWindow.webContents.send('recording:start')
+    recordingWindow.webContents.send('recording:start')
     console.log('録音開始指示を送信しました')
     this.loggerService.info('録音開始指示を送信しました')
   }
@@ -66,20 +62,14 @@ export class AudioIpcHandler {
       return
     }
 
-    const mainWindow = BrowserWindow.getAllWindows()[0]
-    if (!mainWindow) {
-      const error = createError(
-        'アプリケーションウィンドウに問題が発生しました',
-        'メインウィンドウが見つかりません'
-      )
-      this.errorDialogService.showErrorDialog(error)
-      this.loggerService.error('録音停止時にメインウィンドウが見つかりません', error)
+    const recordingWindow = this.getRecordingWindowForOperation('録音停止')
+    if (recordingWindow == null) {
       this.isRecording = false
       return
     }
 
     this.isRecording = false
-    mainWindow.webContents.send('recording:stop')
+    recordingWindow.webContents.send('recording:stop')
     console.log('録音停止指示を送信しました')
     this.loggerService.info('録音停止指示を送信しました')
   }
@@ -139,9 +129,9 @@ export class AudioIpcHandler {
         costInfo: transcriptionResult.costInfo
       })
 
-      const mainWindow = BrowserWindow.getAllWindows()[0]
-      if (mainWindow) {
-        mainWindow.webContents.send('transcription:result', transcriptionResult)
+      const recordingWindow = this.getRecordingWindowForOperation('音声認識結果送信')
+      if (recordingWindow != null) {
+        recordingWindow.webContents.send('transcription:result', transcriptionResult)
       }
     } catch (error) {
       const appError = createError(
@@ -179,6 +169,21 @@ export class AudioIpcHandler {
       this.errorDialogService.showErrorDialog(appError)
       this.loggerService.error('クリップボードへの書き込みに失敗しました', error)
       return false
+    }
+  }
+
+  private getRecordingWindowForOperation(operationName: string): BrowserWindow | null {
+    try {
+      return WindowService.getExistingInstance().getRecordingWindow()
+    } catch (error) {
+      const appError = createError(
+        '録音ウィンドウに問題が発生しました',
+        `${operationName}時に録音ウィンドウを取得できません: ${error}`,
+        error instanceof Error ? error : undefined
+      )
+      this.errorDialogService.showErrorDialog(appError)
+      this.loggerService.error(`${operationName}時に録音ウィンドウを取得できません`, error)
+      return null
     }
   }
 

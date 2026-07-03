@@ -15,6 +15,15 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
+    build: {
+      rollupOptions: {
+        input: {
+          status: resolve('src/renderer/status.html'),
+          history: resolve('src/renderer/history.html'),
+          recording: resolve('src/renderer/recording.html')
+        }
+      }
+    },
     plugins: [vue()]
   }
 })

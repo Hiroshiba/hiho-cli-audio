@@ -1,176 +1,266 @@
-import { BrowserWindow, shell } from 'electron'
-import { join } from 'path'
+import { BrowserWindow, screen, shell } from 'electron'
+import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
 import { Config } from './types'
 import { StateService } from './stateService'
 import { LoggerService } from './loggerService'
 
-const MAIN_WINDOW_STATE_NAME = 'main'
+const STATUS_WINDOW_STATE_NAME = 'status'
+const HISTORY_WINDOW_STATE_NAME = 'history'
+const STATUS_WINDOW_WIDTH = 280
+const STATUS_WINDOW_HEIGHT = 72
+const STATUS_WINDOW_MARGIN_X = 24
+const STATUS_WINDOW_MARGIN_Y = 72
+const HISTORY_WINDOW_NARROW_WIDTH = 360
+const HISTORY_WINDOW_WIDE_WIDTH = 520
+const HISTORY_WINDOW_HEIGHT = 560
+const RECORDING_WINDOW_WIDTH = 320
+const RECORDING_WINDOW_HEIGHT = 240
 
-/** ウィンドウ管理サービス
- *
- * 最前面表示について: https://chatgpt.com/share/686af13e-fde8-8008-a8a4-e4b1e4f3ff18
- */
+/** ウィンドウ管理サービス */
 export class WindowService {
-  private static instance: WindowService
-  private readonly mainWindow: BrowserWindow
+  private static instance: WindowService | null = null
   private readonly config: Config
+  private readonly historyWindow: BrowserWindow
   private readonly loggerService: LoggerService
+  private readonly recordingWindow: BrowserWindow
   private readonly stateService: StateService
+  private readonly statusWindow: BrowserWindow
   private isQuitting = false
 
   private constructor(config: Config) {
     this.config = config
     this.loggerService = LoggerService.getInstance()
     this.stateService = StateService.getInstance()
-    this.mainWindow = this.createWindow()
+    this.statusWindow = this.createStatusWindow()
+    this.historyWindow = this.createHistoryWindow()
+    this.recordingWindow = this.createRecordingWindow()
+    this.applyAlwaysOnTopSetting()
   }
 
   /** シングルトンインスタンスを取得 */
   static getInstance(config: Config): WindowService {
-    if (!WindowService.instance) {
+    if (WindowService.instance == null) {
       WindowService.instance = new WindowService(config)
     }
+
     return WindowService.instance
   }
 
   /** 既存のシングルトンインスタンスを取得 */
   static getExistingInstance(): WindowService {
-    if (!WindowService.instance) {
+    if (WindowService.instance == null) {
       throw new Error('WindowServiceが初期化されていません')
     }
+
     return WindowService.instance
   }
 
-  /** メインウィンドウを作成 */
-  private createWindow(): BrowserWindow {
-    // アイコンの設定
-    const iconPath =
-      process.platform === 'linux' ? join(__dirname, '../../resources/icon.png') : undefined
-
-    // ウィンドウを作成
-    const window = new BrowserWindow({
-      width: 350,
-      height: 600,
-      show: false,
-      autoHideMenuBar: true,
-      ...(iconPath ? { icon: iconPath } : {}),
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.js'),
-        sandbox: false
-      }
-    })
-
-    this.restoreWindowBounds(window)
-    this.setupWindowStatePersistence(window)
-
-    // ウィンドウが準備できたら表示
-    window.on('ready-to-show', () => {
-      window.show()
-      this.applyAlwaysOnTopSetting()
-    })
-
-    // 外部リンクを外部ブラウザで開く
-    window.webContents.setWindowOpenHandler((details) => {
-      shell.openExternal(details.url)
-      return { action: 'deny' }
-    })
-
-    // 開発環境とプロダクション環境でURLを切り替え
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      window.loadURL(process.env['ELECTRON_RENDERER_URL'])
-    } else {
-      window.loadFile(join(__dirname, '../renderer/index.html'))
+  /** 状態ウィンドウを取得 */
+  getStatusWindow(): BrowserWindow {
+    if (this.statusWindow.isDestroyed()) {
+      throw new Error('状態ウィンドウが破棄されています')
     }
 
-    return window
+    return this.statusWindow
   }
 
-  /** 最前面表示を有効化 */
-  private enableAlwaysOnTop(): void {
-    this.mainWindow.setAlwaysOnTop(true)
-
-    if (process.platform === 'darwin') {
-      // macOS: 全スペース＋フルスクリーンにも表示
-      this.mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-      // レベルを上げる ('floating' ≒ NSPopUpMenuWindowLevel)
-      this.mainWindow.setAlwaysOnTop(true, 'floating')
-    } else if (process.platform === 'win32') {
-      this.mainWindow.setAlwaysOnTop(true, 'normal')
+  /** 履歴ウィンドウを取得 */
+  getHistoryWindow(): BrowserWindow {
+    if (this.historyWindow.isDestroyed()) {
+      throw new Error('履歴ウィンドウが破棄されています')
     }
+
+    return this.historyWindow
   }
 
-  /** 最前面表示を無効化 */
-  private disableAlwaysOnTop(): void {
-    this.mainWindow.setAlwaysOnTop(false)
-    if (process.platform === 'darwin') {
-      this.mainWindow.setVisibleOnAllWorkspaces(false)
+  /** 録音ウィンドウを取得 */
+  getRecordingWindow(): BrowserWindow {
+    if (this.recordingWindow.isDestroyed()) {
+      throw new Error('録音ウィンドウが破棄されています')
     }
+
+    return this.recordingWindow
   }
 
-  /** 設定に基づいて最前面表示を適用 */
-  private applyAlwaysOnTopSetting(): void {
-    if (this.config.app.alwaysOnTop) {
-      this.enableAlwaysOnTop()
-    } else {
-      this.disableAlwaysOnTop()
-    }
-    console.log('最前面表示設定を適用しました:', this.config.app.alwaysOnTop)
-    this.loggerService.infoWithDetails('最前面表示設定を適用しました', this.config.app.alwaysOnTop)
+  /** 状態ウィンドウを表示 */
+  showStatusWindow(): void {
+    this.getStatusWindow().showInactive()
   }
 
-  /** メインウィンドウを取得 */
-  getMainWindow(): BrowserWindow {
-    return this.mainWindow
+  /** 状態ウィンドウを非表示 */
+  hideStatusWindow(): void {
+    this.getStatusWindow().hide()
   }
 
   /** 履歴ウィンドウを開く */
   openHistoryWindow(): void {
-    if (this.mainWindow.isDestroyed()) {
-      throw new Error('メインウィンドウが破棄されているため履歴ウィンドウを開けません')
+    const historyWindow = this.getHistoryWindow()
+
+    if (historyWindow.isMinimized()) {
+      historyWindow.restore()
     }
 
-    if (this.mainWindow.isMinimized()) {
-      this.mainWindow.restore()
-    }
-
-    this.mainWindow.show()
-    this.mainWindow.focus()
+    historyWindow.show()
+    historyWindow.focus()
   }
 
   /** サービスのクリーンアップ */
   cleanup(): void {
     this.isQuitting = true
 
-    if (!this.mainWindow.isDestroyed()) {
-      this.mainWindow.close()
+    for (const window of [this.statusWindow, this.historyWindow, this.recordingWindow]) {
+      if (!window.isDestroyed()) {
+        window.close()
+      }
     }
   }
 
-  private restoreWindowBounds(window: BrowserWindow): void {
-    void this.stateService
-      .loadWindowBounds(MAIN_WINDOW_STATE_NAME)
-      .then((result) => {
-        if (result.found) {
-          window.setBounds(result.bounds)
-          this.loggerService.infoWithDetails('ウィンドウ位置を復元しました', result.bounds)
-        }
-      })
-      .catch((error) => {
-        console.error('ウィンドウ位置の復元に失敗しました:', error)
-        this.loggerService.error('ウィンドウ位置の復元に失敗しました', error)
-      })
+  private createStatusWindow(): BrowserWindow {
+    const statusWindow = new BrowserWindow({
+      ...this.getStatusWindowBounds(),
+      show: false,
+      frame: false,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      autoHideMenuBar: true,
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        sandbox: false
+      }
+    })
+
+    this.setupExternalLinkHandler(statusWindow)
+    this.setupPersistedWindowState(statusWindow, STATUS_WINDOW_STATE_NAME)
+    this.loadRendererPage(statusWindow, 'status.html')
+
+    return statusWindow
   }
 
-  private setupWindowStatePersistence(window: BrowserWindow): void {
+  private createHistoryWindow(): BrowserWindow {
+    const historyWindow = new BrowserWindow({
+      width: this.getHistoryWindowWidth(),
+      height: HISTORY_WINDOW_HEIGHT,
+      minWidth: HISTORY_WINDOW_NARROW_WIDTH,
+      minHeight: 360,
+      show: false,
+      center: true,
+      autoHideMenuBar: true,
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        sandbox: false
+      }
+    })
+
+    this.setupExternalLinkHandler(historyWindow)
+    this.setupPersistedWindowState(historyWindow, HISTORY_WINDOW_STATE_NAME)
+    this.loadRendererPage(historyWindow, 'history.html')
+
+    return historyWindow
+  }
+
+  private createRecordingWindow(): BrowserWindow {
+    const recordingWindow = new BrowserWindow({
+      width: RECORDING_WINDOW_WIDTH,
+      height: RECORDING_WINDOW_HEIGHT,
+      show: false,
+      skipTaskbar: true,
+      autoHideMenuBar: true,
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        sandbox: false,
+        backgroundThrottling: false
+      }
+    })
+
+    this.setupExternalLinkHandler(recordingWindow)
+    this.setupHiddenWindowLifecycle(recordingWindow)
+    this.loadRendererPage(recordingWindow, 'recording.html')
+
+    return recordingWindow
+  }
+
+  private getStatusWindowBounds(): Electron.Rectangle {
+    if (this.config.windows.status.initialPosition !== 'top-right-offset') {
+      throw new Error(
+        `未対応の状態ウィンドウ初期位置です: ${this.config.windows.status.initialPosition}`
+      )
+    }
+
+    const { workArea } = screen.getPrimaryDisplay()
+    return {
+      x: workArea.x + workArea.width - STATUS_WINDOW_WIDTH - STATUS_WINDOW_MARGIN_X,
+      y: workArea.y + STATUS_WINDOW_MARGIN_Y,
+      width: STATUS_WINDOW_WIDTH,
+      height: STATUS_WINDOW_HEIGHT
+    }
+  }
+
+  private getHistoryWindowWidth(): number {
+    if (this.config.windows.history.narrow) {
+      return HISTORY_WINDOW_NARROW_WIDTH
+    }
+
+    return HISTORY_WINDOW_WIDE_WIDTH
+  }
+
+  private applyAlwaysOnTopSetting(): void {
+    for (const window of [this.statusWindow, this.historyWindow]) {
+      if (this.config.app.alwaysOnTop) {
+        this.enableAlwaysOnTop(window)
+      } else {
+        this.disableAlwaysOnTop(window)
+      }
+    }
+
+    this.loggerService.infoWithDetails('最前面表示設定を適用しました', {
+      alwaysOnTop: this.config.app.alwaysOnTop,
+      windows: [STATUS_WINDOW_STATE_NAME, HISTORY_WINDOW_STATE_NAME]
+    })
+  }
+
+  private enableAlwaysOnTop(window: BrowserWindow): void {
+    window.setAlwaysOnTop(true)
+
+    if (process.platform === 'darwin') {
+      window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+      window.setAlwaysOnTop(true, 'floating')
+      return
+    }
+
+    if (process.platform === 'win32') {
+      window.setAlwaysOnTop(true, 'normal')
+    }
+  }
+
+  private disableAlwaysOnTop(window: BrowserWindow): void {
+    window.setAlwaysOnTop(false)
+
+    if (process.platform === 'darwin') {
+      window.setVisibleOnAllWorkspaces(false)
+    }
+  }
+
+  private setupExternalLinkHandler(window: BrowserWindow): void {
+    window.webContents.setWindowOpenHandler((details) => {
+      shell.openExternal(details.url)
+      return { action: 'deny' }
+    })
+  }
+
+  private setupPersistedWindowState(window: BrowserWindow, windowName: string): void {
+    this.restoreWindowBounds(window, windowName)
     window.on('moved', () => {
-      this.saveWindowBounds(window)
+      this.saveWindowBounds(window, windowName)
     })
     window.on('resized', () => {
-      this.saveWindowBounds(window)
+      this.saveWindowBounds(window, windowName)
     })
     window.on('close', (event) => {
-      this.saveWindowBounds(window)
+      this.saveWindowBounds(window, windowName)
 
       if (this.isQuitting) {
         return
@@ -181,15 +271,66 @@ export class WindowService {
     })
   }
 
-  private saveWindowBounds(window: BrowserWindow): void {
+  private setupHiddenWindowLifecycle(window: BrowserWindow): void {
+    window.on('close', (event) => {
+      if (this.isQuitting) {
+        return
+      }
+
+      event.preventDefault()
+      window.hide()
+    })
+  }
+
+  private restoreWindowBounds(window: BrowserWindow, windowName: string): void {
+    void this.stateService
+      .loadWindowBounds(windowName)
+      .then((result) => {
+        if (result.found) {
+          window.setBounds(result.bounds)
+          this.loggerService.infoWithDetails('ウィンドウ位置を復元しました', {
+            windowName,
+            bounds: result.bounds
+          })
+        }
+      })
+      .catch((error) => {
+        console.error('ウィンドウ位置の復元に失敗しました:', error)
+        this.loggerService.error('ウィンドウ位置の復元に失敗しました', error)
+      })
+  }
+
+  private saveWindowBounds(window: BrowserWindow, windowName: string): void {
     if (window.isDestroyed()) {
       return
     }
 
     const bounds = window.getBounds()
-    void this.stateService.saveWindowBounds(MAIN_WINDOW_STATE_NAME, bounds).catch((error) => {
+    void this.stateService.saveWindowBounds(windowName, bounds).catch((error) => {
       console.error('ウィンドウ位置の保存に失敗しました:', error)
       this.loggerService.error('ウィンドウ位置の保存に失敗しました', error)
     })
+  }
+
+  private loadRendererPage(window: BrowserWindow, pageName: string): void {
+    const loadPromise = this.createRendererPageLoadPromise(window, pageName)
+    void loadPromise.catch((error) => {
+      console.error(`${pageName} の読み込みに失敗しました:`, error)
+      this.loggerService.error(`${pageName} の読み込みに失敗しました`, error)
+    })
+  }
+
+  private createRendererPageLoadPromise(window: BrowserWindow, pageName: string): Promise<void> {
+    if (is.dev) {
+      const rendererUrl = process.env['ELECTRON_RENDERER_URL']
+      if (rendererUrl == null || rendererUrl === '') {
+        throw new Error('開発用レンダラーURLが設定されていません')
+      }
+
+      const rendererBaseUrl = rendererUrl.endsWith('/') ? rendererUrl : `${rendererUrl}/`
+      return window.loadURL(new URL(pageName, rendererBaseUrl).toString())
+    }
+
+    return window.loadFile(join(__dirname, '../renderer', pageName))
   }
 }
