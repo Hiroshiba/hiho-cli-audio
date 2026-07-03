@@ -1,7 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { AppError, ErrorDialogOptions } from '../shared/types/error'
 import type { HistoryItem } from '../shared/types/history'
+import type { StatusWindowState } from '../shared/types/status'
 
 // Custom APIs for renderer
 const api = {
@@ -18,6 +20,19 @@ const api = {
       }
 
       return copied
+    }
+  },
+  status: {
+    onUpdate: (callback: (state: StatusWindowState) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, state: StatusWindowState): void => {
+        callback(state)
+      }
+
+      ipcRenderer.on('status:update', listener)
+
+      return () => {
+        ipcRenderer.removeListener('status:update', listener)
+      }
     }
   }
 }

@@ -1,3 +1,5 @@
+export type { StatusWindowState } from '../shared/types/status'
+
 /** アプリケーション設定 */
 export interface AppConfig {
   /** 状態ウィンドウと履歴ウィンドウを最前面に表示するか */
@@ -130,14 +132,6 @@ export interface ProcessedAudioData {
   /** WAVファイルの保存パス */
   wavFilePath: string
 }
-
-/** 状態ウィンドウ表示状態 */
-export type StatusWindowState =
-  | { kind: 'idle'; processingJobCount: number }
-  | { kind: 'recording'; recordingStartedAt: string; processingJobCount: number }
-  | { kind: 'transcribing'; processingJobCount: number }
-  | { kind: 'completed'; message: string; processingJobCount: number }
-  | { kind: 'failed'; message: string; processingJobCount: number }
 
 /** Result型 */
 export type Result<T, E = Error> = { success: true; data: T } | { success: false; error: E }
