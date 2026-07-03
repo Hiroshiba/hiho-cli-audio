@@ -12,16 +12,6 @@ export interface AppError {
   timestamp: Date
 }
 
-/** エラーダイアログのオプション */
-export interface ErrorDialogOptions {
-  /** ダイアログタイトル */
-  title?: string
-  /** エラー詳細を表示するか */
-  showDetails?: boolean
-  /** コピーボタンを表示するか */
-  showCopyButton?: boolean
-}
-
 /** エラーを作成するヘルパー関数 */
 export function createError(
   userMessage: string,

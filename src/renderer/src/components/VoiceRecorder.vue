@@ -5,14 +5,17 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { AudioRecorder, type RecordingState } from '../audioRecorder'
-import { createError } from '../../../shared/types/error'
-import type { RecordingStartOptions } from '../../../shared/types/recording'
+import type { RecordingErrorPayload, RecordingStartOptions } from '../../../shared/types/recording'
 
 const recorder = ref<AudioRecorder | null>(null)
 const state = ref<RecordingState>('idle')
 
 const onStateChange = (newState: RecordingState): void => {
   state.value = newState
+}
+
+const sendRecordingError = (payload: RecordingErrorPayload): void => {
+  window.electron.ipcRenderer.send('recording:error', payload)
 }
 
 const handleRecordingStart = async (
@@ -22,22 +25,20 @@ const handleRecordingStart = async (
   console.log('IPC: 録音開始指示を受信しました')
   const currentRecorder = recorder.value
   if (currentRecorder == null) {
-    const appError = createError(
-      '音声録音機能に問題が発生しました',
-      'AudioRecorderが初期化されていません'
-    )
-    await window.api.error.show(appError)
+    sendRecordingError({
+      message: '音声録音機能に問題が発生しました',
+      details: 'AudioRecorderが初期化されていません'
+    })
     return
   }
 
   if (state.value === 'idle') {
     const result = await currentRecorder.startRecording(options.autoStopSeconds)
     if (!result.success) {
-      const appError = createError(
-        'マイクへのアクセス権限が拒否されました。ブラウザまたはシステムの設定からマイクのアクセス許可を有効にしてください。',
-        `録音開始エラー: ${result.error}`
-      )
-      await window.api.error.show(appError)
+      sendRecordingError({
+        message: '録音を開始できませんでした',
+        details: result.error
+      })
     } else {
       console.log('録音を開始しました')
     }
@@ -46,17 +47,14 @@ const handleRecordingStart = async (
   }
 }
 
-const handleRecordingStop = async (): Promise<void> => {
+const handleRecordingStop = (): void => {
   console.log('IPC: 録音停止指示を受信しました')
   const currentRecorder = recorder.value
   if (currentRecorder == null) {
-    const appError = {
-      category: 'SYSTEM',
-      userMessage: '音声録音機能に問題が発生しました',
-      technicalDetails: 'AudioRecorderが初期化されていません',
-      timestamp: new Date()
-    }
-    await window.api.error.show(appError)
+    sendRecordingError({
+      message: '音声録音機能に問題が発生しました',
+      details: 'AudioRecorderが初期化されていません'
+    })
     return
   }
 
@@ -69,7 +67,7 @@ const handleRecordingStop = async (): Promise<void> => {
 }
 
 onMounted(() => {
-  recorder.value = new AudioRecorder(onStateChange)
+  recorder.value = new AudioRecorder(onStateChange, sendRecordingError)
 
   window.electron.ipcRenderer.on('recording:start', handleRecordingStart)
   window.electron.ipcRenderer.on('recording:stop', handleRecordingStop)

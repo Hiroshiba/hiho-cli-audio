@@ -1,3 +1,5 @@
+import type { RecordingErrorPayload } from '../../shared/types/recording'
+
 /** IPC通信用の録音データ */
 export interface RecordingData {
   /** WebM形式音声データ */
@@ -16,9 +18,14 @@ export class AudioRecorder {
   private audioChunks: Blob[] = []
   private startTime: number = 0
   private onStateChange: (state: RecordingState) => void
+  private onError: (payload: RecordingErrorPayload) => void
 
-  constructor(onStateChange: (state: RecordingState) => void) {
+  constructor(
+    onStateChange: (state: RecordingState) => void,
+    onError: (payload: RecordingErrorPayload) => void
+  ) {
     this.onStateChange = onStateChange
+    this.onError = onError
   }
 
   /** 録音開始 */
@@ -93,6 +100,10 @@ export class AudioRecorder {
   private async processRecordedData(): Promise<void> {
     if (this.audioChunks.length === 0) {
       console.warn('録音データがありません')
+      this.onError({
+        message: '録音データがありません',
+        details: 'MediaRecorderから音声データを受信できませんでした'
+      })
       this.clearRecording()
       return
     }
@@ -109,6 +120,10 @@ export class AudioRecorder {
       this.clearRecording()
     } catch (error) {
       console.error('録音データ処理エラー:', error)
+      this.onError({
+        message: '録音データを処理できませんでした',
+        details: formatError(error)
+      })
       this.clearRecording()
     }
   }
@@ -136,4 +151,12 @@ function validateAutoStopSeconds(autoStopSeconds: number): void {
   if (autoStopSeconds <= 0) {
     throw new Error(`自動停止秒数は1秒以上である必要があります: ${autoStopSeconds}`)
   }
+}
+
+function formatError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.stack ?? error.message
+  }
+
+  return String(error)
 }

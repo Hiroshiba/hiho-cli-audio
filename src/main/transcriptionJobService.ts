@@ -69,6 +69,17 @@ export class TranscriptionJobService {
     this.publishStatus()
   }
 
+  /** 録音失敗状態を通知 */
+  notifyRecordingFailure(message: string): void {
+    this.recordingStartedAt = null
+    this.setNotification({
+      id: randomUUID(),
+      kind: 'failed',
+      message,
+      durationMilliseconds: FAILED_NOTIFICATION_MILLISECONDS
+    })
+  }
+
   /** 録音データから文字起こしジョブを開始 */
   submitRecordingData(recordingData: RecordingData): void {
     const jobId = randomUUID()

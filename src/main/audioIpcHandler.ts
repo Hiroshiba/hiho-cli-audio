@@ -1,21 +1,26 @@
 import { ipcMain } from 'electron'
 import type { BrowserWindow } from 'electron'
-import { ErrorDialogService } from './errorDialogService'
+import { z } from 'zod'
 import { LoggerService } from './loggerService'
 import { TranscriptionJobService } from './transcriptionJobService'
 import { WindowService } from './windowService'
-import { createError } from '../shared/types/error'
 import { RecordingData } from './types'
+import type { RecordingErrorPayload } from '../shared/types/recording'
+
+const RecordingErrorPayloadSchema = z
+  .object({
+    message: z.string().min(1),
+    details: z.string().min(1)
+  })
+  .strict()
 
 /** 音声関連のIPC通信ハンドラー */
 export class AudioIpcHandler {
-  private errorDialogService: ErrorDialogService
   private transcriptionJobService: TranscriptionJobService
   private loggerService: LoggerService
   private isRecording: boolean = false
 
   constructor() {
-    this.errorDialogService = ErrorDialogService.getInstance()
     this.transcriptionJobService = TranscriptionJobService.getInstance()
     this.loggerService = LoggerService.getInstance()
     this.setupIpcHandlers()
@@ -24,6 +29,7 @@ export class AudioIpcHandler {
   /** IPC ハンドラーをセットアップ */
   private setupIpcHandlers(): void {
     ipcMain.on('recording:data', this.handleRecordingData.bind(this))
+    ipcMain.on('recording:error', this.handleRecordingError.bind(this))
   }
 
   /** 録音開始 */
@@ -92,17 +98,20 @@ export class AudioIpcHandler {
     this.transcriptionJobService.submitRecordingData(recordingData)
   }
 
+  private handleRecordingError(_event: Electron.IpcMainEvent, payload: unknown): void {
+    const recordingErrorPayload: RecordingErrorPayload = RecordingErrorPayloadSchema.parse(payload)
+
+    this.isRecording = false
+    this.transcriptionJobService.notifyRecordingFailure(recordingErrorPayload.message)
+    this.loggerService.error('録音処理に失敗しました', recordingErrorPayload)
+  }
+
   private getRecordingWindowForOperation(operationName: string): BrowserWindow | null {
     try {
       return WindowService.getExistingInstance().getRecordingWindow()
     } catch (error) {
-      const appError = createError(
-        '録音ウィンドウに問題が発生しました',
-        `${operationName}時に録音ウィンドウを取得できません: ${error}`,
-        error instanceof Error ? error : undefined
-      )
-      this.errorDialogService.showErrorDialog(appError)
       this.loggerService.error(`${operationName}時に録音ウィンドウを取得できません`, error)
+      this.transcriptionJobService.notifyRecordingFailure('録音機能に問題が発生しました')
       return null
     }
   }
@@ -110,6 +119,7 @@ export class AudioIpcHandler {
   /** クリーンアップ */
   cleanup(): void {
     ipcMain.removeAllListeners('recording:data')
+    ipcMain.removeAllListeners('recording:error')
     this.transcriptionJobService.cleanup()
   }
 }

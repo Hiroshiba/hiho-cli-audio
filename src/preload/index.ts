@@ -1,16 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { AppError, ErrorDialogOptions } from '../shared/types/error'
 import type { HistoryItem } from '../shared/types/history'
 import type { StatusWindowState } from '../shared/types/status'
 
 // Custom APIs for renderer
 const api = {
-  error: {
-    show: (error: AppError, options?: ErrorDialogOptions) =>
-      ipcRenderer.invoke('error:show', error, options)
-  },
   history: {
     list: async (): Promise<readonly HistoryItem[]> => await ipcRenderer.invoke('history:list'),
     copy: async (id: string): Promise<boolean> => {

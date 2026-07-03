@@ -46,7 +46,7 @@ export class AppInitializer {
         `初期化エラー: ${error}`,
         error instanceof Error ? error : undefined
       )
-      this.errorDialogService.showErrorDialog(appError)
+      this.errorDialogService.showStartupErrorDialog(appError)
       throw error
     }
   }
@@ -78,7 +78,7 @@ export class AppInitializer {
         `設定サービス初期化エラー: ${error}`,
         error instanceof Error ? error : undefined
       )
-      this.errorDialogService.showErrorDialog(appError)
+      this.errorDialogService.showStartupErrorDialog(appError)
       throw new Error(`設定サービス初期化エラー: ${error}`)
     }
   }
@@ -97,7 +97,7 @@ export class AppInitializer {
         `Gemini サービス初期化エラー: ${error}`,
         error instanceof Error ? error : undefined
       )
-      this.errorDialogService.showErrorDialog(appError)
+      this.errorDialogService.showStartupErrorDialog(appError)
       throw new Error(`Gemini サービス初期化エラー: ${error}`)
     }
   }
@@ -116,7 +116,7 @@ export class AppInitializer {
         `ウィンドウサービス初期化エラー: ${error}`,
         error instanceof Error ? error : undefined
       )
-      this.errorDialogService.showErrorDialog(appError)
+      this.errorDialogService.showStartupErrorDialog(appError)
       throw new Error(`ウィンドウサービス初期化エラー: ${error}`)
     }
   }
@@ -134,7 +134,7 @@ export class AppInitializer {
         `トレイ常駐サービス初期化エラー: ${error}`,
         error instanceof Error ? error : undefined
       )
-      this.errorDialogService.showErrorDialog(appError)
+      this.errorDialogService.showStartupErrorDialog(appError)
       throw new Error(`トレイ常駐サービス初期化エラー: ${error}`)
     }
   }
@@ -161,8 +161,10 @@ export class AppInitializer {
         `ホットキーサービス初期化エラー: ${error}`,
         error instanceof Error ? error : undefined
       )
-      this.errorDialogService.showErrorDialog(appError)
-      throw new Error(`ホットキーサービス初期化エラー: ${error}`)
+      this.errorDialogService.showStartupErrorDialog(appError)
+      this.loggerService.warn(
+        'ホットキーを登録できないため、録音機能は待機状態のまま起動を継続します'
+      )
     }
   }
 
@@ -191,13 +193,6 @@ export class AppInitializer {
     } catch (error) {
       console.error('履歴サービスのクリーンアップエラー:', error)
       this.loggerService.error('履歴サービスのクリーンアップに失敗しました', error)
-    }
-
-    try {
-      this.errorDialogService.cleanup()
-    } catch (error) {
-      console.error('エラーダイアログサービスのクリーンアップエラー:', error)
-      this.loggerService.error('エラーダイアログサービスのクリーンアップに失敗しました', error)
     }
 
     try {

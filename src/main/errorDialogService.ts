@@ -1,71 +1,47 @@
-import { dialog, clipboard } from 'electron'
-import { ipcMain } from 'electron'
-import { AppError, ErrorDialogOptions } from '../shared/types/error'
+import { clipboard, dialog } from 'electron'
+import { AppError } from '../shared/types/error'
 import { LoggerService } from './loggerService'
 
-/** エラーダイアログ表示サービス */
+/** 起動時エラーダイアログ表示サービス */
 export class ErrorDialogService {
-  private static instance: ErrorDialogService
+  private static instance: ErrorDialogService | null = null
   private readonly loggerService: LoggerService
 
   private constructor() {
     this.loggerService = LoggerService.getInstance()
-    this.setupIpcHandlers()
   }
 
+  /** シングルトンインスタンスを取得 */
   static getInstance(): ErrorDialogService {
-    if (!ErrorDialogService.instance) {
+    if (ErrorDialogService.instance == null) {
       ErrorDialogService.instance = new ErrorDialogService()
     }
     return ErrorDialogService.instance
   }
 
-  static getExistingInstance(): ErrorDialogService {
-    if (!ErrorDialogService.instance) {
-      throw new Error('ErrorDialogService が初期化されていません')
-    }
-    return ErrorDialogService.instance
-  }
-
-  /** IPC ハンドラーをセットアップ */
-  private setupIpcHandlers(): void {
-    ipcMain.handle('error:show', this.handleShowErrorFromRenderer.bind(this))
-  }
-
-  /** レンダラープロセスからのエラー表示要求を処理 */
-  private async handleShowErrorFromRenderer(
-    _event: Electron.IpcMainInvokeEvent,
-    error: AppError,
-    options?: ErrorDialogOptions
-  ): Promise<void> {
-    await this.showErrorDialog(error, options)
-  }
-
-  /** エラーダイアログを表示 */
-  async showErrorDialog(error: AppError, options: ErrorDialogOptions = {}): Promise<void> {
-    const { title = 'エラー', showDetails = true, showCopyButton = true } = options
-
+  /** 起動時エラーダイアログを表示 */
+  async showStartupErrorDialog(error: AppError): Promise<void> {
     console.error('エラー発生:', error.technicalDetails, error.originalError)
     this.loggerService.error('エラー発生', {
       technicalDetails: error.technicalDetails,
       originalError: error.originalError
     })
 
-    const buttons = this.createButtons(showCopyButton)
-    const detailText = showDetails ? this.formatDetailText(error) : undefined
+    const buttons = this.createButtons()
+    const detailText = this.formatDetailText(error)
 
     try {
       const result = await dialog.showMessageBox({
         type: 'error',
-        title,
+        title: '起動エラー',
         message: error.userMessage,
         detail: detailText,
         buttons,
-        defaultId: 0,
-        cancelId: buttons.length - 1
+        defaultId: buttons.indexOf('OK'),
+        cancelId: buttons.indexOf('OK')
       })
 
-      if (showCopyButton && result.response === buttons.indexOf('エラー詳細をコピー')) {
+      if (result.response === buttons.indexOf('エラー詳細をコピー')) {
         await this.copyErrorToClipboard(error)
       }
     } catch (dialogError) {
@@ -76,13 +52,9 @@ export class ErrorDialogService {
 
   /** 詳細テキストをフォーマット */
   private formatDetailText(error: AppError): string {
-    const parts = [error.technicalDetails]
+    const parts = [error.technicalDetails, `発生時刻: ${error.timestamp.toLocaleString('ja-JP')}`]
 
-    if (error.timestamp) {
-      parts.push(`発生時刻: ${error.timestamp.toLocaleString('ja-JP')}`)
-    }
-
-    if (error.source) {
+    if (error.source != null && error.source !== '') {
       parts.push(`発生箇所: ${error.source}`)
     }
 
@@ -90,14 +62,8 @@ export class ErrorDialogService {
   }
 
   /** ボタン配列を作成 */
-  private createButtons(showCopyButton: boolean): string[] {
-    const buttons = ['OK']
-
-    if (showCopyButton) {
-      buttons.unshift('エラー詳細をコピー')
-    }
-
-    return buttons
+  private createButtons(): string[] {
+    return ['エラー詳細をコピー', 'OK']
   }
 
   /** エラー詳細をクリップボードにコピー */
@@ -136,40 +102,14 @@ export class ErrorDialogService {
       `発生時刻: ${error.timestamp.toLocaleString('ja-JP')}`
     ]
 
-    if (error.source) {
+    if (error.source != null && error.source !== '') {
       lines.push(`発生箇所: ${error.source}`)
     }
 
-    if (error.originalError) {
+    if (error.originalError != null) {
       lines.push(`元のエラー: ${error.originalError}`)
     }
 
     return lines.join('\n')
-  }
-
-  /** 簡易エラー表示（文字列のみ） */
-  async showSimpleError(userMessage: string, technicalDetails?: string): Promise<void> {
-    const error: AppError = {
-      userMessage,
-      technicalDetails: technicalDetails || userMessage,
-      timestamp: new Date()
-    }
-
-    await this.showErrorDialog(error)
-  }
-
-  /** 緊急時のエラー表示（最小限の機能） */
-  async showCriticalError(message: string): Promise<void> {
-    try {
-      await dialog.showErrorBox('重大なエラー', message)
-    } catch (error) {
-      console.error('緊急エラーダイアログの表示に失敗しました:', error)
-      this.loggerService.error('緊急エラーダイアログの表示に失敗しました', error)
-    }
-  }
-
-  /** クリーンアップ */
-  cleanup(): void {
-    ipcMain.removeHandler('error:show')
   }
 }
