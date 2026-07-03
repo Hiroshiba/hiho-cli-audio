@@ -24,7 +24,6 @@ export class AudioIpcHandler {
   /** IPC ハンドラーをセットアップ */
   private setupIpcHandlers(): void {
     ipcMain.on('recording:data', this.handleRecordingData.bind(this))
-    ipcMain.handle('recording:status', this.getRecordingStatus.bind(this))
   }
 
   /** 録音開始 */
@@ -42,7 +41,9 @@ export class AudioIpcHandler {
 
     this.isRecording = true
     this.transcriptionJobService.startRecording()
-    recordingWindow.webContents.send('recording:start')
+    recordingWindow.webContents.send('recording:start', {
+      autoStopSeconds: WindowService.getExistingInstance().getRecordingAutoStopSeconds()
+    })
     console.log('録音開始指示を送信しました')
     this.loggerService.info('録音開始指示を送信しました')
   }
@@ -78,11 +79,6 @@ export class AudioIpcHandler {
     }
   }
 
-  /** 録音状態を取得 */
-  private getRecordingStatus(): boolean {
-    return this.isRecording
-  }
-
   /** 録音データ受信ハンドラー */
   private handleRecordingData(_event: Electron.IpcMainEvent, recordingData: RecordingData): void {
     console.log('WebM音声データを受信しました:', {
@@ -114,7 +110,6 @@ export class AudioIpcHandler {
   /** クリーンアップ */
   cleanup(): void {
     ipcMain.removeAllListeners('recording:data')
-    ipcMain.removeAllListeners('recording:status')
     this.transcriptionJobService.cleanup()
   }
 }

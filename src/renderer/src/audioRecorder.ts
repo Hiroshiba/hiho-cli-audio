@@ -15,22 +15,16 @@ export class AudioRecorder {
   private mediaRecorder: MediaRecorder | null = null
   private audioChunks: Blob[] = []
   private startTime: number = 0
-  private maxDuration: number
   private onStateChange: (state: RecordingState) => void
-  private onDurationChange: (duration: number) => void
 
-  constructor(
-    maxDuration: number,
-    onStateChange: (state: RecordingState) => void,
-    onDurationChange: (duration: number) => void
-  ) {
-    this.maxDuration = maxDuration
+  constructor(onStateChange: (state: RecordingState) => void) {
     this.onStateChange = onStateChange
-    this.onDurationChange = onDurationChange
   }
 
   /** 録音開始 */
-  async startRecording(): Promise<Result<void, string>> {
+  async startRecording(autoStopSeconds: number): Promise<Result<void, string>> {
+    validateAutoStopSeconds(autoStopSeconds)
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -55,14 +49,14 @@ export class AudioRecorder {
 
       this.mediaRecorder.onstop = () => {
         stream.getTracks().forEach((track) => track.stop())
-        this.processRecordedData()
+        void this.processRecordedData()
       }
 
       this.mediaRecorder.start(1000)
       this.startTime = Date.now()
       this.onStateChange('recording')
 
-      this.startDurationTimer()
+      this.startDurationTimer(autoStopSeconds)
 
       return { success: true, data: undefined }
     } catch (error) {
@@ -72,20 +66,19 @@ export class AudioRecorder {
 
   /** 録音停止 */
   stopRecording(): void {
-    if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+    if (this.mediaRecorder != null && this.mediaRecorder.state === 'recording') {
       this.mediaRecorder.stop()
       this.onStateChange('processing')
     }
   }
 
   /** 録音時間タイマー */
-  private startDurationTimer(): void {
+  private startDurationTimer(autoStopSeconds: number): void {
     const updateDuration = (): void => {
       if (this.mediaRecorder?.state === 'recording') {
         const elapsed = (Date.now() - this.startTime) / 1000
-        this.onDurationChange(elapsed)
 
-        if (elapsed >= this.maxDuration) {
+        if (elapsed >= autoStopSeconds) {
           this.stopRecording()
           return
         }
@@ -100,7 +93,7 @@ export class AudioRecorder {
   private async processRecordedData(): Promise<void> {
     if (this.audioChunks.length === 0) {
       console.warn('録音データがありません')
-      this.onStateChange('idle')
+      this.clearRecording()
       return
     }
 
@@ -113,9 +106,10 @@ export class AudioRecorder {
       }
 
       window.electron.ipcRenderer.send('recording:data', recordingData)
+      this.clearRecording()
     } catch (error) {
       console.error('録音データ処理エラー:', error)
-      this.onStateChange('idle')
+      this.clearRecording()
     }
   }
 
@@ -127,9 +121,19 @@ export class AudioRecorder {
   /** 録音データをクリア */
   clearRecording(): void {
     this.audioChunks = []
-    if (this.mediaRecorder) {
+    if (this.mediaRecorder != null) {
       this.mediaRecorder = null
     }
     this.onStateChange('idle')
+  }
+}
+
+function validateAutoStopSeconds(autoStopSeconds: number): void {
+  if (!Number.isInteger(autoStopSeconds)) {
+    throw new Error(`自動停止秒数は整数である必要があります: ${autoStopSeconds}`)
+  }
+
+  if (autoStopSeconds <= 0) {
+    throw new Error(`自動停止秒数は1秒以上である必要があります: ${autoStopSeconds}`)
   }
 }

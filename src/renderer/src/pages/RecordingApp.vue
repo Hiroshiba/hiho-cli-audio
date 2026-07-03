@@ -9,10 +9,16 @@ import VoiceRecorder from '../components/VoiceRecorder.vue'
 </template>
 
 <style scoped>
-.app {
-  height: 100vh;
-  overflow-y: auto;
-  padding: 0;
+:global(html),
+:global(body),
+:global(#app) {
+  width: 100%;
+  height: 100%;
   margin: 0;
+}
+
+:global(body) {
+  overflow: hidden;
+  background: transparent;
 }
 </style>

@@ -83,6 +83,11 @@ export class WindowService {
     return this.recordingWindow
   }
 
+  /** 自動停止までの秒数を取得 */
+  getRecordingAutoStopSeconds(): number {
+    return this.config.recording.autoStopSeconds
+  }
+
   /** 状態ウィンドウを表示 */
   showStatusWindow(): void {
     this.getStatusWindow().showInactive()
