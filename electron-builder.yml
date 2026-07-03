@@ -14,6 +14,8 @@ asarUnpack:
   - resources/**
 win:
   executableName: hiho-cli-audio
+  target:
+    - nsis
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -21,16 +23,12 @@ nsis:
   createDesktopShortcut: always
 mac:
   entitlementsInherit: build/entitlements.mac.plist
+  identity: null
+  target:
+    - dmg
   extendInfo:
     NSMicrophoneUsageDescription: 'このアプリケーションは音声録音のためにマイクアクセスを必要とします。'
   notarize: false
 dmg:
-  artifactName: ${name}-${version}.${ext}
-linux:
-  target:
-    - AppImage
-  maintainer: hiho-cli-audio
-  category: Utility
-appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false

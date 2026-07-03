@@ -14,7 +14,9 @@
     "dev": "electron-vite dev",
     "build": "pnpm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
-    "build:unpack": "pnpm run build && electron-builder --dir"
+    "build:unpack": "pnpm run build && electron-builder --dir",
+    "build:win": "pnpm run build && electron-builder --win --publish never",
+    "build:mac": "pnpm run build && electron-builder --mac --publish never"
   },
   "dependencies": {
     "@electron-toolkit/preload": "3.0.2",

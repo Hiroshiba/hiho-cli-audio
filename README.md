@@ -1,124 +1,103 @@
 # hiho-cli-audio
 
-ホットキーで音声を文字起こししてクリップボードにコピーするElectronアプリケーションです。  
-Gemini音声認識APIを利用してリアルタイム音声認識を行い、最前面表示でいつでもアクセスできます。
+ホットキーで録音し、Gemini APIで文字起こしした結果を自動でクリップボードへコピーする個人用Electronアプリケーションです。
 
 ## 機能
 
-- **ホットキー対応**: `Ctrl+Shift+D`（Windows/Linux）、`Cmd+Shift+D`（macOS）でワンタッチ録音
-- **リアルタイム音声認識**: Gemini APIによる高精度な音声認識
-- **最前面表示**: 常に最前面に表示されるため、どんなアプリケーションからでもアクセス可能
-- **クリップボード連携**: 認識結果をワンクリックでクリップボードにコピー
-- **クロスプラットフォーム**: Windows、macOS、Linux対応
+- Windows通知領域とmacOSメニューバーに常駐
+- グローバルホットキーで録音開始と停止を切り替え
+- 録音停止後にWebMを16kHzモノラルWAVへ変換
+- Gemini APIで文字起こしし、完了順にクリップボードへコピー
+- 録音中、認識中、完了、失敗だけを小型状態ウィンドウに表示
+- トレイメニューから履歴ウィンドウを開き、成功した履歴をクリックで再コピー
+- 設定はアプリ内画面ではなくYAMLファイルを直接編集
 
-## インストール・使用方法
+## 対応OS
 
-### リリース版の使用（推奨）
+- Windows
+- macOS
 
-[GitHub Releases](https://github.com/hiroshiba/hiho-cli-audio/releases)から最新版をダウンロードしてください。
+Linux向けビルドは提供しません。
 
-### 開発版の使用
+## 使い方
 
-```bash
-# 依存関係をインストール
-pnpm install
+1. アプリケーションを起動する
+2. 初回起動で作成された `config.yaml` にGemini APIキーを設定する
+3. アプリケーションを再起動する
+4. ホットキーで録音を開始する
+5. もう一度ホットキーを押して録音を停止する
+6. 文字起こし完了後、結果が自動でクリップボードへコピーされる
 
-# 開発モードで起動
-pnpm dev
-```
+初期ホットキーはWindowsが `Ctrl+Shift+D`、macOSが `Command+Shift+D` です。
 
-## 設定方法
+## 設定ファイル
 
-### 1. 設定ファイルの作成
+設定ファイルはElectronのユーザーデータディレクトリに作成されます。
 
-初回実行時に設定ファイルが自動作成されます：
+- Windows: `%APPDATA%/hiho-cli-audio/config.yaml`
+- macOS: `~/Library/Application Support/hiho-cli-audio/config.yaml`
 
-`~/.config/hiho-cli-audio/config.yaml`
-
-### 2. Gemini APIキーの設定
-
-設定ファイルにGemini APIキーを設定してください：
+設定例です。
 
 ```yaml
-gemini_api_key: 'your-gemini-api-key-here'
-hotkey: 'CommandOrControl+Shift+D'
+app:
+  alwaysOnTop: true
+
+hotkeys:
+  toggleRecording:
+    windows: 'Control+Shift+D'
+    macos: 'Command+Shift+D'
+
+recording:
+  autoStopSeconds: 300
+
+transcription:
+  provider: 'gemini'
+  gemini:
+    apiKey: 'your-gemini-api-key'
+    model: 'gemini-2.5-flash'
+  language: 'ja-JP'
+
+history:
+  maxItems: 10
+
+windows:
+  status:
+    initialPosition: 'top-right-offset'
+  history:
+    narrow: true
+
+vocabulary:
+  - reading: 'じぇみに'
+    output: 'Gemini'
 ```
 
-## 使用方法
+設定の変更はアプリケーション再起動後に反映されます。
 
-1. アプリケーションを起動
-2. ホットキー（デフォルト: `Ctrl+Shift+D`）を押して録音開始
-3. 再度ホットキーを押して録音停止・音声認識開始
-4. 認識結果が表示されたら「コピー」ボタンでクリップボードにコピー
-
-## 開発環境
-
-このプロジェクトは**Claude Code**（claude.ai/code）を使用して開発されています。
-
-### 環境構築
-
-1. リポジトリをクローン：
-
-```bash
-git clone https://github.com/hiroshiba/hiho-cli-audio.git
-cd hiho-cli-audio
-```
-
-2. 依存関係をインストール：
+## 開発
 
 ```bash
 pnpm install
+pnpm dev
 ```
 
-3. 開発環境での実行：
+確認コマンドです。
 
 ```bash
-# 開発サーバー起動
-pnpm dev
-
-# 型チェック実行
+pnpm lint
 pnpm typecheck
-
-# ビルド実行
 pnpm build
 ```
 
-### コードフォーマット
-
-Prettier・ESLintを使用してコードの品質を管理しています：
+## ビルド
 
 ```bash
-# リント実行
-pnpm lint
-
-# フォーマット実行
-pnpm format
-
-# 型チェック実行
-pnpm typecheck
-```
-
-### ビルド
-
-```bash
-# Windows向けビルド
 pnpm build:win
-
-# macOS向けビルド
 pnpm build:mac
-
-# Linux向けビルド
-pnpm build:linux
 ```
+
+GitHub Actionsの `Build` ワークフローはWindowsとmacOSの成果物を作成し、Actions artifactとして保存します。GitHub Releasesへの公開、自動更新、署名、公証は行いません。
 
 ## ライセンス
 
-MIT License - 詳細は [LICENSE](LICENSE) ファイルを参照してください。
-
-## Note
-
-このプロジェクトは開発者の個人利用を目的として開発されています。
-
-## 作成者
-
-@Hiroshiba
+MIT Licenseです。詳細は [LICENSE](LICENSE) を参照してください。

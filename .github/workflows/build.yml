@@ -4,8 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'バージョン情報（例: 1.0.0）'
+        description: 'package.jsonに設定するバージョン'
         required: true
+
+permissions:
+  contents: read
 
 defaults:
   run:
@@ -13,20 +16,30 @@ defaults:
 
 jobs:
   build:
+    name: ${{ matrix.label }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
-            name: win
+            label: Windows
+            build_args: --win
+            artifact_name: hiho-cli-audio-windows
+            artifact_path: |
+              dist/*.exe
+              dist/*.blockmap
           - os: macos-latest
-            name: mac
-          - os: ubuntu-latest
-            name: linux
-            container: electronuserland/builder
+            label: macOS
+            build_args: --mac
+            artifact_name: hiho-cli-audio-macos
+            artifact_path: |
+              dist/*.dmg
+              dist/*.blockmap
 
     runs-on: ${{ matrix.os }}
-    container: ${{ matrix.container }}
+
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: false
 
     steps:
       - name: <Setup> リポジトリのチェックアウト
@@ -45,53 +58,23 @@ jobs:
         run: pnpm install
 
       - name: <Setup> package.jsonのバージョン更新
-        run: npm version ${{ github.event.inputs.version }} --no-git-tag-version
+        run: pnpm version ${{ github.event.inputs.version }} --no-git-tag-version
 
-      - name: <Build> TypeScript型チェック
+      - name: <Check> TypeScript型チェック
         run: pnpm typecheck
 
-      - name: <Build> ESLintの実行
+      - name: <Check> ESLintの実行
         run: pnpm lint
 
       - name: <Build> Electronアプリケーションのビルド
         run: pnpm run build
 
-      # 複数プラットフォームが並行でGitHub Releasesに同時アップロードを試みるため、
-      # 競合やAPI制限により失敗する可能性がある。リトライ機構で信頼性を向上させる。
-      - name: <Deploy> GitHub Releasesへの公開（リトライ付き）
-        run: |
-          max_attempts=3
-          for attempt in $(seq 1 $max_attempts); do
-            echo "公開試行 $attempt/$max_attempts"
-            if pnpm run publish:${{ matrix.name }}; then
-              echo "✅ 公開成功"
-              exit 0
-            else
-              echo "❌ 公開失敗 (試行 $attempt/$max_attempts)"
-              if [ $attempt -lt $max_attempts ]; then
-                wait_time=$((attempt * 15))
-                echo "⏳ ${wait_time}秒待機してリトライ..."
-                sleep $wait_time
-              fi
-            fi
-          done
-          echo "💥 最大試行回数に達しました。公開に失敗しました。"
-          exit 1
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: <Build> アプリケーションパッケージの作成
+        run: pnpm exec electron-builder ${{ matrix.build_args }} --publish never
 
-  # 全プラットフォームのビルド・公開が完了後にプレリリースを正式リリースに昇格
-  promote-release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: <Setup> リポジトリのチェックアウト
-        uses: actions/checkout@v4
-
-      - name: <Deploy> プレリリースを正式リリースに昇格
-        run: |
-          gh release edit ${{ github.event.inputs.version }} \
-            --prerelease=false \
-            --latest
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: <Artifact> 成果物のアップロード
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: error
