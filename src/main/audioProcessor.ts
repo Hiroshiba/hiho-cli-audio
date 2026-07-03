@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process'
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
-import { randomUUID } from 'node:crypto'
 import ffmpegStatic from 'ffmpeg-static'
 import { ProcessedAudioData, RecordingData, Result } from './types'
 import { LoggerService } from './loggerService'
@@ -19,9 +18,9 @@ export class AudioProcessor {
 
   /** WebM形式音声データをリサンプリングして16kHz、モノラル、16bit WAVファイルに変換 */
   async processAudioData(
-    recordingData: RecordingData
+    recordingData: RecordingData,
+    audioId: string
   ): Promise<Result<ProcessedAudioData, string>> {
-    const audioId = randomUUID()
     const tempInputPath = join(this.tempDir, `${audioId}.webm`)
     const outputPath = join(this.audioDir, `${audioId}.wav`)
 

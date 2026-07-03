@@ -6,6 +6,7 @@ import { WindowService } from './windowService'
 import { ErrorDialogService } from './errorDialogService'
 import { LoggerService } from './loggerService'
 import { TrayService } from './trayService'
+import { HistoryService } from './historyService'
 import { createError } from '../shared/types/error'
 
 /** アプリケーションの初期化処理 */
@@ -16,11 +17,13 @@ export class AppInitializer {
   private readonly errorDialogService: ErrorDialogService
   private readonly loggerService: LoggerService
   private readonly trayService: TrayService
+  private readonly historyService: HistoryService
 
   constructor() {
     this.loggerService = LoggerService.getInstance()
     this.configService = ConfigService.createDefault()
     this.geminiService = GeminiService.getInstance()
+    this.historyService = HistoryService.getInstance()
     this.audioIpcHandler = new AudioIpcHandler()
     this.errorDialogService = ErrorDialogService.getInstance()
     this.trayService = TrayService.getInstance()
@@ -181,6 +184,13 @@ export class AppInitializer {
     } catch (error) {
       console.error('音声IPCハンドラーのクリーンアップエラー:', error)
       this.loggerService.error('音声IPCハンドラーのクリーンアップに失敗しました', error)
+    }
+
+    try {
+      this.historyService.cleanup()
+    } catch (error) {
+      console.error('履歴サービスのクリーンアップエラー:', error)
+      this.loggerService.error('履歴サービスのクリーンアップに失敗しました', error)
     }
 
     try {

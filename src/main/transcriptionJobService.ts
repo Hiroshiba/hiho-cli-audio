@@ -3,8 +3,9 @@ import { randomUUID } from 'node:crypto'
 import { AudioProcessor } from './audioProcessor'
 import { ConfigService } from './configService'
 import { GeminiService } from './geminiService'
+import { HistoryService } from './historyService'
 import { LoggerService } from './loggerService'
-import { RecordingData, StatusWindowState } from './types'
+import { ProcessedAudioData, RecordingData, StatusWindowState } from './types'
 import { WindowService } from './windowService'
 
 const COMPLETED_MESSAGE = 'クリップボードにコピーしました'
@@ -23,6 +24,7 @@ export class TranscriptionJobService {
   private readonly audioProcessor: AudioProcessor
   private readonly configService: ConfigService
   private readonly geminiService: GeminiService
+  private readonly historyService: HistoryService
   private readonly loggerService: LoggerService
   private notification: TranscriptionJobNotification | null = null
   private notificationTimer: ReturnType<typeof setTimeout> | null = null
@@ -32,6 +34,7 @@ export class TranscriptionJobService {
     this.audioProcessor = new AudioProcessor(userDataDir)
     this.configService = ConfigService.getInstance()
     this.geminiService = GeminiService.getInstance()
+    this.historyService = HistoryService.getInstance()
     this.loggerService = LoggerService.getInstance()
   }
 
@@ -69,6 +72,7 @@ export class TranscriptionJobService {
   /** 録音データから文字起こしジョブを開始 */
   submitRecordingData(recordingData: RecordingData): void {
     const jobId = randomUUID()
+    const createdAt = new Date().toISOString()
     this.activeJobIds.add(jobId)
     this.stopRecording()
     this.publishStatus()
@@ -78,7 +82,7 @@ export class TranscriptionJobService {
       dataSize: recordingData.webmData.length
     })
 
-    void this.runJob(jobId, recordingData)
+    void this.runJob(jobId, createdAt, recordingData)
   }
 
   /** サービスをクリーンアップ */
@@ -90,14 +94,20 @@ export class TranscriptionJobService {
     this.publishStatus()
   }
 
-  private async runJob(jobId: string, recordingData: RecordingData): Promise<void> {
+  private async runJob(
+    jobId: string,
+    createdAt: string,
+    recordingData: RecordingData
+  ): Promise<void> {
+    let processedAudio: ProcessedAudioData | null = null
+
     try {
-      const processResult = await this.audioProcessor.processAudioData(recordingData)
+      const processResult = await this.audioProcessor.processAudioData(recordingData, jobId)
       if (!processResult.success) {
         throw new Error(processResult.error)
       }
 
-      const processedAudio = processResult.data
+      processedAudio = processResult.data
       const config = await this.configService.loadConfig()
       const geminiClient = this.geminiService.getClient()
       const transcriptionResult = await geminiClient.transcribe(
@@ -116,6 +126,8 @@ export class TranscriptionJobService {
         costInfo: transcriptionResult.costInfo
       })
 
+      await this.recordCompletedHistoryItem(processedAudio, createdAt, transcriptionResult.text)
+
       this.completeJob(jobId, {
         id: randomUUID(),
         kind: 'completed',
@@ -128,11 +140,57 @@ export class TranscriptionJobService {
         error: this.formatError(error)
       })
 
+      await this.recordFailedHistoryItem(jobId, createdAt, processedAudio)
+
       this.completeJob(jobId, {
         id: randomUUID(),
         kind: 'failed',
         message: FAILED_MESSAGE,
         durationMilliseconds: FAILED_NOTIFICATION_MILLISECONDS
+      })
+    }
+  }
+
+  private async recordCompletedHistoryItem(
+    processedAudio: ProcessedAudioData,
+    createdAt: string,
+    transcript: string
+  ): Promise<void> {
+    try {
+      await this.historyService.recordCompletedItem({
+        id: processedAudio.id,
+        createdAt,
+        completedAt: new Date().toISOString(),
+        transcript,
+        audioPath: processedAudio.wavFilePath
+      })
+    } catch (error) {
+      this.loggerService.error('成功履歴の保存に失敗しました', {
+        historyId: processedAudio.id,
+        error: this.formatError(error)
+      })
+    }
+  }
+
+  private async recordFailedHistoryItem(
+    jobId: string,
+    createdAt: string,
+    processedAudio: ProcessedAudioData | null
+  ): Promise<void> {
+    const historyId = processedAudio == null ? jobId : processedAudio.id
+    const audioPath = processedAudio == null ? null : processedAudio.wavFilePath
+
+    try {
+      await this.historyService.recordFailedItem({
+        id: historyId,
+        createdAt,
+        completedAt: new Date().toISOString(),
+        audioPath
+      })
+    } catch (error) {
+      this.loggerService.error('失敗履歴の保存に失敗しました', {
+        historyId,
+        error: this.formatError(error)
       })
     }
   }
