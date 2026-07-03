@@ -1,6 +1,5 @@
-import { clipboard, ipcMain } from 'electron'
+import { app, clipboard, ipcMain } from 'electron'
 import type { BrowserWindow } from 'electron'
-import { promises as fs } from 'node:fs'
 import { AudioProcessor } from './audioProcessor'
 import { GeminiService } from './geminiService'
 import { ConfigService } from './configService'
@@ -20,7 +19,7 @@ export class AudioIpcHandler {
   private isRecording: boolean = false
 
   constructor() {
-    this.audioProcessor = new AudioProcessor()
+    this.audioProcessor = new AudioProcessor(app.getPath('userData'))
     this.geminiService = GeminiService.getInstance()
     this.configService = ConfigService.getInstance()
     this.errorDialogService = ErrorDialogService.getInstance()
@@ -93,7 +92,6 @@ export class AudioIpcHandler {
     _event: Electron.IpcMainEvent,
     recordingData: RecordingData
   ): Promise<void> {
-    let wavFilePath: string | null = null
     try {
       console.log('WebM音声データを受信しました:', {
         dataSize: recordingData.webmData.length
@@ -115,13 +113,21 @@ export class AudioIpcHandler {
         return
       }
 
-      wavFilePath = processResult.data
+      const processedAudio = processResult.data
+      const wavFilePath = processedAudio.wavFilePath
       console.log('音声処理完了、音声認識開始')
-      this.loggerService.info('音声処理完了、音声認識開始')
+      this.loggerService.infoWithDetails('音声処理完了、音声認識開始', {
+        audioId: processedAudio.id,
+        wavFilePath
+      })
 
       const geminiClient = this.geminiService.getClient()
       const config = await this.configService.loadConfig()
-      const transcriptionResult = await geminiClient.transcribe(wavFilePath, config.vocabulary)
+      const transcriptionResult = await geminiClient.transcribe(
+        wavFilePath,
+        config.vocabulary,
+        config.transcription.language
+      )
 
       console.log('音声認識完了:', transcriptionResult)
       this.loggerService.infoWithDetails('音声認識完了', {
@@ -141,12 +147,6 @@ export class AudioIpcHandler {
       )
       this.errorDialogService.showErrorDialog(appError)
       this.loggerService.error('録音データ処理中に予期しないエラーが発生しました', error)
-    } finally {
-      if (wavFilePath != null) {
-        await fs.unlink(wavFilePath).catch((error) => {
-          this.loggerService.error('一時WAVファイルの削除に失敗しました', error)
-        })
-      }
     }
   }
 

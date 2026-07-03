@@ -123,6 +123,14 @@ export interface RecordingData {
   webmData: Uint8Array
 }
 
+/** 変換済み音声ファイル */
+export interface ProcessedAudioData {
+  /** 履歴と紐づける音声ID */
+  id: string
+  /** WAVファイルの保存パス */
+  wavFilePath: string
+}
+
 /** Result型 */
 export type Result<T, E = Error> = { success: true; data: T } | { success: false; error: E }
 

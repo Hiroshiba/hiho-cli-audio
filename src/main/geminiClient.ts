@@ -14,7 +14,8 @@ export class GeminiClient {
   /** WAVファイルをテキストに変換し、コスト情報も返す */
   async transcribe(
     wavFilePath: string,
-    vocabularyEntries: readonly VocabularyEntry[]
+    vocabularyEntries: readonly VocabularyEntry[],
+    language: string
   ): Promise<TranscriptionResult> {
     const uploadedFile = await this.ai.files.upload({
       file: wavFilePath,
@@ -23,7 +24,7 @@ export class GeminiClient {
       }
     })
 
-    const prompt = this.createTranscriptionPrompt(vocabularyEntries)
+    const prompt = this.createTranscriptionPrompt(vocabularyEntries, language)
 
     const response = await this.ai.models.generateContent({
       model: this.config.model,
@@ -47,16 +48,23 @@ export class GeminiClient {
   }
 
   /** 音声認識プロンプトを作成 */
-  private createTranscriptionPrompt(vocabularyEntries: readonly VocabularyEntry[]): string {
+  private createTranscriptionPrompt(
+    vocabularyEntries: readonly VocabularyEntry[],
+    language: string
+  ): string {
     let prompt = `
-以下の音声を書き起こしてください。フィーラー（「えー」「あの」「その」「まあ」などの間投詞）は除去し、内容の意味を損なわないようにしてください。
-音楽や効果音がある場合は無視してください。`
+以下の音声を ${language} の発話として書き起こしてください。
+話された内容をできるだけそのまま出力してください。
+要約、言い換え、文章の整形、フィラーの除去、表現の補正はしないでください。
+聞き取れない箇所は推測で補わず、聞こえた範囲だけを出力してください。
+音楽や効果音など、発話ではない音は出力しないでください。
+出力は文字起こし本文のみとし、説明文や前置きは書かないでください。`
 
     if (vocabularyEntries.length > 0) {
-      prompt += `\n\n## 特定の語彙の認識について\n以下の語彙については、読み方が認識された場合は対応する出力形式で記述してください：\n`
+      prompt += `\n\n## カスタム語彙\n以下の読み方に聞こえる語は、対応する出力表記を優先してください。文字起こし後の機械的な置換ではなく、音声認識時の参考情報として扱ってください。\n`
 
       for (const entry of vocabularyEntries) {
-        prompt += `- 「${entry.reading}」と聞こえた場合は「${entry.output}」と記述\n`
+        prompt += `- 「${entry.reading}」は「${entry.output}」と出力\n`
       }
     }
 

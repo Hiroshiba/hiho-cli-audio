@@ -1,47 +1,66 @@
 import { spawn } from 'node:child_process'
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
-import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import ffmpegStatic from 'ffmpeg-static'
-import { RecordingData, Result } from './types'
+import { ProcessedAudioData, RecordingData, Result } from './types'
 import { LoggerService } from './loggerService'
 
 /** 音声処理クラス */
 export class AudioProcessor {
   private readonly loggerService = LoggerService.getInstance()
+  private readonly audioDir: string
+  private readonly tempDir: string
+
+  constructor(userDataDir: string) {
+    this.audioDir = join(userDataDir, 'audio')
+    this.tempDir = join(userDataDir, 'tmp')
+  }
 
   /** WebM形式音声データをリサンプリングして16kHz、モノラル、16bit WAVファイルに変換 */
-  async processAudioData(recordingData: RecordingData): Promise<Result<string, string>> {
-    const tempInputPath = join(tmpdir(), `input_${randomUUID()}.webm`)
-    const tempOutputPath = join(tmpdir(), `output_${randomUUID()}.wav`)
+  async processAudioData(
+    recordingData: RecordingData
+  ): Promise<Result<ProcessedAudioData, string>> {
+    const audioId = randomUUID()
+    const tempInputPath = join(this.tempDir, `${audioId}.webm`)
+    const outputPath = join(this.audioDir, `${audioId}.wav`)
 
     try {
+      await fs.mkdir(this.tempDir, { recursive: true })
+      await fs.mkdir(this.audioDir, { recursive: true })
       await fs.writeFile(tempInputPath, recordingData.webmData)
 
-      const success = await this.resampleWithFFmpeg(tempInputPath, tempOutputPath)
+      const success = await this.resampleWithFFmpeg(tempInputPath, outputPath)
       if (!success) {
         this.loggerService.error('FFmpegリサンプリングに失敗しました', {
           inputPath: tempInputPath,
-          outputPath: tempOutputPath
+          outputPath
         })
+        await this.removeTemporaryFile(outputPath, '変換失敗後のWAVファイル削除に失敗しました')
+        await this.removeTemporaryFile(tempInputPath, '一時WebMファイルの削除に失敗しました')
         return { success: false, error: 'FFmpegリサンプリングに失敗しました' }
       }
 
-      return { success: true, data: tempOutputPath }
+      await this.removeTemporaryFile(tempInputPath, '一時WebMファイルの削除に失敗しました')
+      return {
+        success: true,
+        data: {
+          id: audioId,
+          wavFilePath: outputPath
+        }
+      }
     } catch (error) {
-      await this.removeTemporaryFile(tempOutputPath, '一時WAVファイルの削除に失敗しました')
+      await this.removeTemporaryFile(outputPath, '変換途中のWAVファイル削除に失敗しました')
+      await this.removeTemporaryFile(tempInputPath, '一時WebMファイルの削除に失敗しました')
       this.loggerService.error('音声処理に失敗しました', error)
       return { success: false, error: `音声処理エラー: ${error}` }
-    } finally {
-      await this.removeTemporaryFile(tempInputPath, '一時WebMファイルの削除に失敗しました')
     }
   }
 
   /** FFmpegを使用して音声をリサンプリング */
   private async resampleWithFFmpeg(inputPath: string, outputPath: string): Promise<boolean> {
     const ffmpegPath = ffmpegStatic
-    if (!ffmpegPath) {
+    if (ffmpegPath == null || ffmpegPath === '') {
       throw new Error('FFmpeg静的バイナリが見つかりません')
     }
 
