@@ -119,7 +119,7 @@ export class TranscriptionJobService {
       }
 
       processedAudio = processResult.data
-      const config = await this.configService.loadConfig()
+      const config = this.configService.getConfig()
       const geminiClient = this.geminiService.getClient()
       const transcriptionResult = await geminiClient.transcribe(
         processedAudio.wavFilePath,

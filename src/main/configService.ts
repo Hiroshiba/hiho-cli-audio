@@ -10,6 +10,7 @@ import { LoggerService } from './loggerService'
 /** 設定ファイル管理サービス */
 export class ConfigService {
   private static instance: ConfigService | null = null
+  private config: Config | null = null
   private readonly loggerService: LoggerService
   private readonly configDir: string
   private readonly configFile: string
@@ -35,17 +36,24 @@ export class ConfigService {
     return ConfigService.instance
   }
 
-  /** 設定ファイルの読み込み */
-  async loadConfig(): Promise<Config> {
-    const configData = await fs.readFile(this.configFile, 'utf-8')
-    const parsedConfig = yaml.load(configData) as unknown
-
-    const validationResult = validateConfigSafe(parsedConfig)
-    if (!validationResult.success) {
-      throw new Error(`設定ファイルの検証に失敗しました: ${validationResult.error}`)
+  /** 設定ファイルを読み込んで保持 */
+  async initializeConfig(): Promise<Config> {
+    if (this.config != null) {
+      throw new Error('設定ファイルは既に読み込み済みです')
     }
 
-    return validationResult.data
+    const config = await this.readConfigFile()
+    this.config = config
+    return config
+  }
+
+  /** 起動時に読み込んだ設定を取得 */
+  getConfig(): Config {
+    if (this.config == null) {
+      throw new Error('設定ファイルが読み込まれていません')
+    }
+
+    return this.config
   }
 
   /** デフォルト設定ファイルを生成 */
@@ -89,5 +97,17 @@ export class ConfigService {
   /** 設定ファイルのパスを取得 */
   getConfigPath(): string {
     return this.configFile
+  }
+
+  private async readConfigFile(): Promise<Config> {
+    const configData = await fs.readFile(this.configFile, 'utf-8')
+    const parsedConfig = yaml.load(configData) as unknown
+
+    const validationResult = validateConfigSafe(parsedConfig)
+    if (!validationResult.success) {
+      throw new Error(`設定ファイルの検証に失敗しました: ${validationResult.error}`)
+    }
+
+    return validationResult.data
   }
 }

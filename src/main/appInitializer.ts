@@ -68,7 +68,7 @@ export class AppInitializer {
         )
       }
 
-      await this.configService.loadConfig()
+      await this.configService.initializeConfig()
       console.log('設定ファイル管理サービスを初期化しました')
       this.loggerService.info('設定ファイル管理サービスを初期化しました')
     } catch (error) {
@@ -86,7 +86,7 @@ export class AppInitializer {
   /** Gemini サービスの初期化 */
   private async initializeGeminiService(): Promise<void> {
     try {
-      const config = await this.configService.loadConfig()
+      const config = this.configService.getConfig()
       this.geminiService.initialize(config.transcription.gemini)
       console.log('Gemini サービスを初期化しました')
       this.loggerService.info('Gemini サービスを初期化しました')
@@ -105,7 +105,7 @@ export class AppInitializer {
   /** ウィンドウサービスの初期化 */
   private async initializeWindowService(): Promise<void> {
     try {
-      const config = await this.configService.loadConfig()
+      const config = this.configService.getConfig()
       WindowService.getInstance(config)
       console.log('ウィンドウサービスを初期化しました')
       this.loggerService.info('ウィンドウサービスを初期化しました')
@@ -142,7 +142,7 @@ export class AppInitializer {
   /** ホットキーサービスの初期化 */
   private async initializeHotkeyService(): Promise<void> {
     try {
-      const config = await this.configService.loadConfig()
+      const config = this.configService.getConfig()
 
       const recordingToggleCallback = (): void => {
         console.log('録音トグルが実行されました')

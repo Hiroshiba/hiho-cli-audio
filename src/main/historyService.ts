@@ -153,7 +153,7 @@ export class HistoryService {
   }
 
   private async appendItem(item: HistoryItem): Promise<HistoryItem> {
-    const config = await this.configService.loadConfig()
+    const config = this.configService.getConfig()
     const historyFile = await this.loadHistoryFile()
     const sortedItems = this.sortNewestFirst([...historyFile.items, item])
     const retainedItems = sortedItems.slice(0, config.history.maxItems)

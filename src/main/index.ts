@@ -18,24 +18,30 @@ function cleanupApplication(): Promise<void> {
 }
 
 // Electron の初期化が完了してからアプリケーションサービスを初期化する
-app.whenReady().then(async () => {
-  // Windows 用のアプリケーションユーザーモデルIDを設定する
-  electronApp.setAppUserModelId('com.electron')
+app
+  .whenReady()
+  .then(async () => {
+    // Windows 用のアプリケーションユーザーモデルIDを設定する
+    electronApp.setAppUserModelId('com.electron')
 
-  if (process.platform === 'darwin' && app.dock != null) {
-    app.dock.hide()
-  }
+    if (process.platform === 'darwin' && app.dock != null) {
+      app.dock.hide()
+    }
 
-  // 開発中はF12によるDevTools操作を有効にし、本番ではリロードショートカットを無効にする
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
+    // 開発中はF12によるDevTools操作を有効にし、本番ではリロードショートカットを無効にする
+    app.on('browser-window-created', (_, window) => {
+      optimizer.watchWindowShortcuts(window)
+    })
+
+    appInitializer = new AppInitializer()
+    await appInitializer.initialize()
+
+    ipcMain.on('ping', () => console.log('pong'))
   })
-
-  appInitializer = new AppInitializer()
-  await appInitializer.initialize()
-
-  ipcMain.on('ping', () => console.log('pong'))
-})
+  .catch((error) => {
+    console.error('アプリケーションの起動に失敗しました:', error)
+    app.quit()
+  })
 
 // ウィンドウを閉じてもトレイ常駐を継続する
 app.on('window-all-closed', () => {
