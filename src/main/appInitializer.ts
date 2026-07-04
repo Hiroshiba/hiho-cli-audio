@@ -7,7 +7,19 @@ import { ErrorDialogService } from './errorDialogService'
 import { LoggerService } from './loggerService'
 import { TrayService } from './trayService'
 import { HistoryService } from './historyService'
-import { createError } from '../shared/types/error'
+import { type AppError, createError } from '../shared/types/error'
+
+/** 起動初期化エラー */
+class StartupInitializationError extends Error {
+  readonly appError: AppError
+
+  constructor(appError: AppError) {
+    super(appError.technicalDetails)
+    this.name = 'StartupInitializationError'
+    this.appError = appError
+    Object.setPrototypeOf(this, StartupInitializationError.prototype)
+  }
+}
 
 /** アプリケーションの初期化処理 */
 export class AppInitializer {
@@ -41,12 +53,15 @@ export class AppInitializer {
       this.loggerService.info('アプリケーションの初期化が完了しました')
     } catch (error) {
       this.loggerService.error('アプリケーションの初期化に失敗しました', error)
-      const appError = createError(
-        'アプリケーションの初期化に失敗しました。アプリケーションを再起動してください。',
-        `初期化エラー: ${error}`,
-        error instanceof Error ? error : undefined
-      )
-      this.errorDialogService.showStartupErrorDialog(appError)
+      const appError =
+        error instanceof StartupInitializationError
+          ? error.appError
+          : createError(
+              'アプリケーションの初期化に失敗しました。アプリケーションを再起動してください。',
+              `初期化エラー: ${error}`,
+              error
+            )
+      await this.errorDialogService.showStartupErrorDialog(appError)
       throw error
     }
   }
@@ -73,13 +88,13 @@ export class AppInitializer {
       this.loggerService.info('設定ファイル管理サービスを初期化しました')
     } catch (error) {
       this.loggerService.error('設定ファイル管理サービスの初期化に失敗しました', error)
-      const appError = createError(
-        '設定ファイルの読み込みに失敗しました。設定ファイルを確認してください。',
-        `設定サービス初期化エラー: ${error}`,
-        error instanceof Error ? error : undefined
+      throw new StartupInitializationError(
+        createError(
+          '設定ファイルの読み込みに失敗しました。設定ファイルを確認してください。',
+          `設定サービス初期化エラー: ${error}`,
+          error
+        )
       )
-      this.errorDialogService.showStartupErrorDialog(appError)
-      throw new Error(`設定サービス初期化エラー: ${error}`)
     }
   }
 
@@ -92,13 +107,13 @@ export class AppInitializer {
       this.loggerService.info('Gemini サービスを初期化しました')
     } catch (error) {
       this.loggerService.error('Gemini サービスの初期化に失敗しました', error)
-      const appError = createError(
-        'Gemini API の初期化に失敗しました。APIキーを確認してください。',
-        `Gemini サービス初期化エラー: ${error}`,
-        error instanceof Error ? error : undefined
+      throw new StartupInitializationError(
+        createError(
+          'Gemini API の初期化に失敗しました。APIキーを確認してください。',
+          `Gemini サービス初期化エラー: ${error}`,
+          error
+        )
       )
-      this.errorDialogService.showStartupErrorDialog(appError)
-      throw new Error(`Gemini サービス初期化エラー: ${error}`)
     }
   }
 
@@ -111,13 +126,13 @@ export class AppInitializer {
       this.loggerService.info('ウィンドウサービスを初期化しました')
     } catch (error) {
       this.loggerService.error('ウィンドウサービスの初期化に失敗しました', error)
-      const appError = createError(
-        'ウィンドウの初期化に失敗しました。',
-        `ウィンドウサービス初期化エラー: ${error}`,
-        error instanceof Error ? error : undefined
+      throw new StartupInitializationError(
+        createError(
+          'ウィンドウの初期化に失敗しました。',
+          `ウィンドウサービス初期化エラー: ${error}`,
+          error
+        )
       )
-      this.errorDialogService.showStartupErrorDialog(appError)
-      throw new Error(`ウィンドウサービス初期化エラー: ${error}`)
     }
   }
 
@@ -129,13 +144,13 @@ export class AppInitializer {
       this.loggerService.info('トレイ常駐サービスを初期化しました')
     } catch (error) {
       this.loggerService.error('トレイ常駐サービスの初期化に失敗しました', error)
-      const appError = createError(
-        'トレイ常駐の初期化に失敗しました。',
-        `トレイ常駐サービス初期化エラー: ${error}`,
-        error instanceof Error ? error : undefined
+      throw new StartupInitializationError(
+        createError(
+          'トレイ常駐の初期化に失敗しました。',
+          `トレイ常駐サービス初期化エラー: ${error}`,
+          error
+        )
       )
-      this.errorDialogService.showStartupErrorDialog(appError)
-      throw new Error(`トレイ常駐サービス初期化エラー: ${error}`)
     }
   }
 
@@ -161,7 +176,7 @@ export class AppInitializer {
         `ホットキーサービス初期化エラー: ${error}`,
         error instanceof Error ? error : undefined
       )
-      this.errorDialogService.showStartupErrorDialog(appError)
+      await this.errorDialogService.showStartupErrorDialog(appError)
       this.loggerService.warn(
         'ホットキーを登録できないため、録音機能は待機状態のまま起動を継続します'
       )

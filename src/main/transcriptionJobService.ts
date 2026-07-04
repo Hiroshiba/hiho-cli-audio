@@ -26,6 +26,7 @@ export class TranscriptionJobService {
   private readonly geminiService: GeminiService
   private readonly historyService: HistoryService
   private readonly loggerService: LoggerService
+  private isCleaningUp = false
   private notification: TranscriptionJobNotification | null = null
   private notificationTimer: ReturnType<typeof setTimeout> | null = null
   private recordingStartedAt: string | null = null
@@ -102,6 +103,7 @@ export class TranscriptionJobService {
 
   /** サービスをクリーンアップ */
   cleanup(): void {
+    this.isCleaningUp = true
     this.clearNotificationTimer()
     this.activeJobIds.clear()
     this.notification = null
@@ -128,7 +130,8 @@ export class TranscriptionJobService {
       const transcriptionResult = await geminiClient.transcribe(
         processedAudio.wavFilePath,
         config.vocabulary,
-        config.transcription.language
+        config.transcription.language,
+        config.transcription.preserveSpeechAsMuchAsPossible
       )
 
       clipboard.writeText(transcriptionResult.text)
@@ -211,6 +214,15 @@ export class TranscriptionJobService {
   }
 
   private completeJob(jobId: string, notification: TranscriptionJobNotification): void {
+    if (this.isCleaningUp) {
+      this.activeJobIds.delete(jobId)
+      this.loggerService.infoWithDetails('終了処理中の文字起こしジョブ完了通知を破棄しました', {
+        jobId,
+        notificationKind: notification.kind
+      })
+      return
+    }
+
     const wasActive = this.activeJobIds.delete(jobId)
     if (!wasActive) {
       throw new Error(`未登録の文字起こしジョブが完了しました: ${jobId}`)

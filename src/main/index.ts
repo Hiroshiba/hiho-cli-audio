@@ -22,7 +22,7 @@ app
   .whenReady()
   .then(async () => {
     // Windows 用のアプリケーションユーザーモデルIDを設定する
-    electronApp.setAppUserModelId('com.electron')
+    electronApp.setAppUserModelId('com.hiho.audio')
 
     if (process.platform === 'darwin' && app.dock != null) {
       app.dock.hide()

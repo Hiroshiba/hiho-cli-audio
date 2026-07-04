@@ -15,7 +15,8 @@ export class GeminiClient {
   async transcribe(
     wavFilePath: string,
     vocabularyEntries: readonly VocabularyEntry[],
-    language: string
+    language: string,
+    preserveSpeechAsMuchAsPossible: boolean
   ): Promise<TranscriptionResult> {
     const uploadedFile = await this.ai.files.upload({
       file: wavFilePath,
@@ -24,7 +25,11 @@ export class GeminiClient {
       }
     })
 
-    const prompt = this.createTranscriptionPrompt(vocabularyEntries, language)
+    const prompt = this.createTranscriptionPrompt(
+      vocabularyEntries,
+      language,
+      preserveSpeechAsMuchAsPossible
+    )
 
     const response = await this.ai.models.generateContent({
       model: this.config.model,
@@ -50,12 +55,18 @@ export class GeminiClient {
   /** 音声認識プロンプトを作成 */
   private createTranscriptionPrompt(
     vocabularyEntries: readonly VocabularyEntry[],
-    language: string
+    language: string,
+    preserveSpeechAsMuchAsPossible: boolean
   ): string {
+    const speechPreservationInstruction = preserveSpeechAsMuchAsPossible
+      ? `話された内容をできるだけそのまま出力してください。
+要約、言い換え、文章の整形、フィラーの除去、表現の補正はしないでください。`
+      : `話された内容の意味を変えない範囲で、自然な文字起こしとして出力してください。
+要約、内容の補足、発話にない情報の追加はしないでください。`
+
     let prompt = `
 以下の音声を ${language} の発話として書き起こしてください。
-話された内容をできるだけそのまま出力してください。
-要約、言い換え、文章の整形、フィラーの除去、表現の補正はしないでください。
+${speechPreservationInstruction}
 聞き取れない箇所は推測で補わず、聞こえた範囲だけを出力してください。
 音楽や効果音など、発話ではない音は出力しないでください。
 出力は文字起こし本文のみとし、説明文や前置きは書かないでください。`
