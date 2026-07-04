@@ -33,6 +33,7 @@ export class StateService {
   private static instance: StateService | null = null
   private readonly loggerService: LoggerService
   private readonly stateFilePath: string
+  private writeQueue: Promise<void> = Promise.resolve()
 
   private constructor(userDataPath: string) {
     this.loggerService = LoggerService.getInstance()
@@ -57,6 +58,47 @@ export class StateService {
 
   /** 状態ファイルを読み込む */
   async loadState(): Promise<AppState> {
+    await this.writeQueue
+    return await this.readStateFile()
+  }
+
+  /** 状態ファイルを書き込む */
+  async saveState(state: AppState): Promise<void> {
+    await this.enqueueWrite(async () => await this.writeStateFile(state))
+  }
+
+  /** ウィンドウ位置とサイズを読み込む */
+  async loadWindowBounds(windowName: string): Promise<WindowBoundsLoadResult> {
+    const state = await this.loadState()
+    const bounds = state.windows[windowName]
+
+    if (bounds == null) {
+      return { found: false }
+    }
+
+    return { found: true, bounds }
+  }
+
+  /** ウィンドウ位置とサイズを保存する */
+  async saveWindowBounds(windowName: string, bounds: WindowBounds): Promise<void> {
+    await this.enqueueWrite(async () => {
+      const state = await this.readStateFile()
+      await this.writeStateFile({
+        ...state,
+        windows: {
+          ...state.windows,
+          [windowName]: bounds
+        }
+      })
+    })
+  }
+
+  /** 状態ファイルパスを取得 */
+  getStateFilePath(): string {
+    return this.stateFilePath
+  }
+
+  private async readStateFile(): Promise<AppState> {
     try {
       const stateData = await fs.readFile(this.stateFilePath, 'utf-8')
       const parsedState: unknown = JSON.parse(stateData)
@@ -84,39 +126,18 @@ export class StateService {
     }
   }
 
-  /** 状態ファイルを書き込む */
-  async saveState(state: AppState): Promise<void> {
+  private async writeStateFile(state: AppState): Promise<void> {
     const validatedState = AppStateSchema.parse(state)
     await writeFileAtomic(this.stateFilePath, JSON.stringify(validatedState, null, 2))
   }
 
-  /** ウィンドウ位置とサイズを読み込む */
-  async loadWindowBounds(windowName: string): Promise<WindowBoundsLoadResult> {
-    const state = await this.loadState()
-    const bounds = state.windows[windowName]
-
-    if (bounds == null) {
-      return { found: false }
-    }
-
-    return { found: true, bounds }
-  }
-
-  /** ウィンドウ位置とサイズを保存する */
-  async saveWindowBounds(windowName: string, bounds: WindowBounds): Promise<void> {
-    const state = await this.loadState()
-    await this.saveState({
-      ...state,
-      windows: {
-        ...state.windows,
-        [windowName]: bounds
-      }
-    })
-  }
-
-  /** 状態ファイルパスを取得 */
-  getStateFilePath(): string {
-    return this.stateFilePath
+  private enqueueWrite<T>(operation: () => Promise<T>): Promise<T> {
+    const queuedOperation = this.writeQueue.then(operation, operation)
+    this.writeQueue = queuedOperation.then(
+      () => undefined,
+      () => undefined
+    )
+    return queuedOperation
   }
 }
 

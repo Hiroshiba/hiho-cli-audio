@@ -1,4 +1,4 @@
-import { app, clipboard } from 'electron'
+import { app, clipboard, ipcMain } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { AudioProcessor } from './audioProcessor'
 import { ConfigService } from './configService'
@@ -37,6 +37,7 @@ export class TranscriptionJobService {
     this.geminiService = GeminiService.getInstance()
     this.historyService = HistoryService.getInstance()
     this.loggerService = LoggerService.getInstance()
+    this.setupIpcHandlers()
   }
 
   /** シングルトンインスタンスを取得 */
@@ -105,10 +106,19 @@ export class TranscriptionJobService {
   cleanup(): void {
     this.isCleaningUp = true
     this.clearNotificationTimer()
+    ipcMain.removeHandler('status:get')
     this.activeJobIds.clear()
     this.notification = null
     this.recordingStartedAt = null
     this.publishStatus()
+  }
+
+  private setupIpcHandlers(): void {
+    ipcMain.handle('status:get', this.handleGetStatus.bind(this))
+  }
+
+  private handleGetStatus(): StatusWindowState {
+    return this.createStatusWindowState()
   }
 
   private async runJob(

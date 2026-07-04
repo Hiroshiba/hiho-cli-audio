@@ -43,8 +43,13 @@ export class GeminiClient {
       ]
     })
 
+    const transcriptionText = response.text
+    if (transcriptionText == null || transcriptionText.trim().length === 0) {
+      throw new Error('Gemini の文字起こし結果が空です')
+    }
+
     return {
-      text: response.text || ''
+      text: transcriptionText
     }
   }
 

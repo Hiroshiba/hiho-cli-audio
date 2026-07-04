@@ -6,6 +6,8 @@ import type {
   RecordingStoppedPayload
 } from '../../shared/types/recording'
 
+const STOPPED_SESSION_ID_LIMIT = 20
+
 /** Result型 - 成功とエラーを表現 */
 export type Result<T, E = Error> = { success: true; data: T } | { success: false; error: E }
 
@@ -19,6 +21,7 @@ export class AudioRecorder {
   private startTime: number = 0
   private currentSessionId: string | null = null
   private stopReason: RecordingStopReason | null = null
+  private stoppedSessionIds: string[] = []
   private onStateChange: (state: RecordingState) => void
   private onError: (payload: RecordingErrorPayload) => void
 
@@ -93,6 +96,10 @@ export class AudioRecorder {
       }
     }
 
+    if (this.mediaRecorder.state === 'inactive' && this.stopReason != null) {
+      return { success: true, data: undefined }
+    }
+
     if (this.mediaRecorder.state !== 'recording') {
       return { success: false, error: `録音を停止できない状態です: ${this.mediaRecorder.state}` }
     }
@@ -100,6 +107,11 @@ export class AudioRecorder {
     this.stopReason = reason
     this.mediaRecorder.stop()
     return { success: true, data: undefined }
+  }
+
+  /** 停止済み録音セッションかどうかを返す */
+  hasStoppedSession(sessionId: string): boolean {
+    return this.stoppedSessionIds.includes(sessionId)
   }
 
   /** 録音時間タイマー */
@@ -146,6 +158,7 @@ export class AudioRecorder {
 
     const audioChunks = [...this.audioChunks]
     this.resetRecording()
+    this.rememberStoppedSession(sessionId)
 
     const stoppedPayload: RecordingStoppedPayload = {
       sessionId,
@@ -194,6 +207,20 @@ export class AudioRecorder {
     this.currentSessionId = null
     this.stopReason = null
     this.onStateChange('idle')
+  }
+
+  private rememberStoppedSession(sessionId: string): void {
+    this.stoppedSessionIds = this.stoppedSessionIds.filter(
+      (stoppedSessionId) => stoppedSessionId !== sessionId
+    )
+    this.stoppedSessionIds.push(sessionId)
+
+    while (this.stoppedSessionIds.length > STOPPED_SESSION_ID_LIMIT) {
+      const removedSessionId = this.stoppedSessionIds.shift()
+      if (removedSessionId == null) {
+        throw new Error('停止済み録音セッションIDの削除に失敗しました')
+      }
+    }
   }
 }
 

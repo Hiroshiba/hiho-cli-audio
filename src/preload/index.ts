@@ -1,8 +1,45 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import { z } from 'zod'
 import type { HistoryItem } from '../shared/types/history'
 import type { StatusWindowState } from '../shared/types/status'
+
+const StatusWindowStateSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('idle'),
+      processingJobCount: z.number().int().nonnegative()
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('recording'),
+      recordingStartedAt: z.string().min(1),
+      processingJobCount: z.number().int().nonnegative()
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('transcribing'),
+      processingJobCount: z.number().int().nonnegative()
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('completed'),
+      message: z.string().min(1),
+      processingJobCount: z.number().int().nonnegative()
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('failed'),
+      message: z.string().min(1),
+      processingJobCount: z.number().int().nonnegative()
+    })
+    .strict()
+])
 
 // Custom APIs for renderer
 const api = {
@@ -18,6 +55,10 @@ const api = {
     }
   },
   status: {
+    getCurrent: async (): Promise<StatusWindowState> => {
+      const state: unknown = await ipcRenderer.invoke('status:get')
+      return StatusWindowStateSchema.parse(state)
+    },
     onUpdate: (callback: (state: StatusWindowState) => void): (() => void) => {
       const listener = (_event: IpcRendererEvent, state: StatusWindowState): void => {
         callback(state)

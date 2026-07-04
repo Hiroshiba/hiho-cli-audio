@@ -64,8 +64,13 @@ function handleStatusUpdate(state: StatusWindowState): void {
   updateCurrentTime()
 }
 
+async function loadCurrentStatus(): Promise<void> {
+  handleStatusUpdate(await window.api.status.getCurrent())
+}
+
 onMounted(() => {
   removeStatusUpdateListener = window.api.status.onUpdate(handleStatusUpdate)
+  void loadCurrentStatus()
   clockTimer = setInterval(updateCurrentTime, 1000)
 })
 

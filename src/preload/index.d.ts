@@ -8,6 +8,7 @@ interface API {
     copy: (id: string) => Promise<boolean>
   }
   status: {
+    getCurrent: () => Promise<StatusWindowState>
     onUpdate: (callback: (state: StatusWindowState) => void) => () => void
   }
 }

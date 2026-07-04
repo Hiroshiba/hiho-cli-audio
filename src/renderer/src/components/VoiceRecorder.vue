@@ -76,6 +76,14 @@ const handleRecordingStop = (_event: unknown, options: RecordingStopOptions): vo
 
   const result = currentRecorder.stopRecording(options.sessionId, 'requested')
   if (!result.success) {
+    if (currentRecorder.hasStoppedSession(options.sessionId)) {
+      console.warn('終了済み録音セッションへの停止指示を無視しました', {
+        sessionId: options.sessionId,
+        details: result.error
+      })
+      return
+    }
+
     sendRecordingError({
       sessionId: options.sessionId,
       message: '録音を停止できませんでした',

@@ -182,7 +182,6 @@ hiho-cli-audio/
       historyService.ts
       hotkeyService.ts
       index.ts
-      ipcTypes.ts
       loggerService.ts
       schemas.ts
       stateService.ts

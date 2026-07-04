@@ -1,4 +1,4 @@
-import { app, ipcMain } from 'electron'
+import { app } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { AppInitializer } from './appInitializer'
 
@@ -35,8 +35,6 @@ app
 
     appInitializer = new AppInitializer()
     await appInitializer.initialize()
-
-    ipcMain.on('ping', () => console.log('pong'))
   })
   .catch((error) => {
     console.error('アプリケーションの起動に失敗しました:', error)
