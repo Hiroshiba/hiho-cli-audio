@@ -1,22 +1,24 @@
-import type { RecordingErrorPayload } from '../../shared/types/recording'
-
-/** IPC通信用の録音データ */
-export interface RecordingData {
-  /** WebM形式音声データ */
-  webmData: Uint8Array
-}
+import type {
+  RecordingData,
+  RecordingErrorPayload,
+  RecordingStartOptions,
+  RecordingStopReason,
+  RecordingStoppedPayload
+} from '../../shared/types/recording'
 
 /** Result型 - 成功とエラーを表現 */
 export type Result<T, E = Error> = { success: true; data: T } | { success: false; error: E }
 
 /** 録音状態 */
-export type RecordingState = 'idle' | 'recording' | 'processing'
+export type RecordingState = 'idle' | 'recording'
 
 /** 音声録音クラス */
 export class AudioRecorder {
   private mediaRecorder: MediaRecorder | null = null
   private audioChunks: Blob[] = []
   private startTime: number = 0
+  private currentSessionId: string | null = null
+  private stopReason: RecordingStopReason | null = null
   private onStateChange: (state: RecordingState) => void
   private onError: (payload: RecordingErrorPayload) => void
 
@@ -29,8 +31,12 @@ export class AudioRecorder {
   }
 
   /** 録音開始 */
-  async startRecording(autoStopSeconds: number): Promise<Result<void, string>> {
-    validateAutoStopSeconds(autoStopSeconds)
+  async startRecording(options: RecordingStartOptions): Promise<Result<void, string>> {
+    validateAutoStopSeconds(options.autoStopSeconds)
+
+    if (this.currentSessionId != null) {
+      return { success: false, error: '録音は既に開始されています' }
+    }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -47,6 +53,8 @@ export class AudioRecorder {
       this.mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm'
       })
+      this.currentSessionId = options.sessionId
+      this.stopReason = null
 
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -56,89 +64,135 @@ export class AudioRecorder {
 
       this.mediaRecorder.onstop = () => {
         stream.getTracks().forEach((track) => track.stop())
-        void this.processRecordedData()
+        this.finishRecording(options.sessionId)
       }
 
       this.mediaRecorder.start(1000)
       this.startTime = Date.now()
       this.onStateChange('recording')
 
-      this.startDurationTimer(autoStopSeconds)
+      this.startDurationTimer(options.sessionId, options.autoStopSeconds)
 
       return { success: true, data: undefined }
     } catch (error) {
+      this.resetRecording()
       return { success: false, error: `録音開始エラー: ${error}` }
     }
   }
 
   /** 録音停止 */
-  stopRecording(): void {
-    if (this.mediaRecorder != null && this.mediaRecorder.state === 'recording') {
-      this.mediaRecorder.stop()
-      this.onStateChange('processing')
+  stopRecording(sessionId: string, reason: RecordingStopReason): Result<void, string> {
+    if (this.currentSessionId == null || this.mediaRecorder == null) {
+      return { success: false, error: '録音は開始されていません' }
     }
+
+    if (this.currentSessionId !== sessionId) {
+      return {
+        success: false,
+        error: `別の録音セッションが実行中です: ${this.currentSessionId}`
+      }
+    }
+
+    if (this.mediaRecorder.state !== 'recording') {
+      return { success: false, error: `録音を停止できない状態です: ${this.mediaRecorder.state}` }
+    }
+
+    this.stopReason = reason
+    this.mediaRecorder.stop()
+    return { success: true, data: undefined }
   }
 
   /** 録音時間タイマー */
-  private startDurationTimer(autoStopSeconds: number): void {
+  private startDurationTimer(sessionId: string, autoStopSeconds: number): void {
     const updateDuration = (): void => {
-      if (this.mediaRecorder?.state === 'recording') {
-        const elapsed = (Date.now() - this.startTime) / 1000
-
-        if (elapsed >= autoStopSeconds) {
-          this.stopRecording()
-          return
-        }
-
-        setTimeout(updateDuration, 100)
+      if (this.currentSessionId !== sessionId || this.mediaRecorder == null) {
+        return
       }
+
+      if (this.mediaRecorder.state !== 'recording') {
+        return
+      }
+
+      const elapsed = (Date.now() - this.startTime) / 1000
+
+      if (elapsed >= autoStopSeconds) {
+        const result = this.stopRecording(sessionId, 'auto-stop')
+        if (!result.success) {
+          this.onError({
+            sessionId,
+            message: '録音の自動停止に失敗しました',
+            details: result.error
+          })
+        }
+        return
+      }
+
+      setTimeout(updateDuration, 100)
     }
     updateDuration()
   }
 
+  private finishRecording(sessionId: string): void {
+    const reason = this.stopReason
+    if (reason == null) {
+      this.onError({
+        sessionId,
+        message: '録音停止状態に問題が発生しました',
+        details: '録音停止理由が設定されていません'
+      })
+      this.resetRecording()
+      return
+    }
+
+    const audioChunks = [...this.audioChunks]
+    this.resetRecording()
+
+    const stoppedPayload: RecordingStoppedPayload = {
+      sessionId,
+      reason
+    }
+    window.electron.ipcRenderer.send('recording:stopped', stoppedPayload)
+    void this.processRecordedData(sessionId, audioChunks)
+  }
+
   /** 録音データを処理してIPCで送信 */
-  private async processRecordedData(): Promise<void> {
-    if (this.audioChunks.length === 0) {
+  private async processRecordedData(sessionId: string, audioChunks: Blob[]): Promise<void> {
+    if (audioChunks.length === 0) {
       console.warn('録音データがありません')
       this.onError({
+        sessionId,
         message: '録音データがありません',
         details: 'MediaRecorderから音声データを受信できませんでした'
       })
-      this.clearRecording()
       return
     }
 
     try {
-      const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' })
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' })
       const webmData = new Uint8Array(await audioBlob.arrayBuffer())
 
       const recordingData: RecordingData = {
+        sessionId,
         webmData
       }
 
       window.electron.ipcRenderer.send('recording:data', recordingData)
-      this.clearRecording()
     } catch (error) {
       console.error('録音データ処理エラー:', error)
       this.onError({
+        sessionId,
         message: '録音データを処理できませんでした',
         details: formatError(error)
       })
-      this.clearRecording()
     }
-  }
-
-  /** 録音中かどうか */
-  get isRecording(): boolean {
-    return this.mediaRecorder?.state === 'recording'
   }
 
   /** 録音データをクリア */
-  clearRecording(): void {
+  private resetRecording(): void {
     this.audioChunks = []
-    if (this.mediaRecorder != null) {
-      this.mediaRecorder = null
-    }
+    this.mediaRecorder = null
+    this.currentSessionId = null
+    this.stopReason = null
     this.onStateChange('idle')
   }
 }

@@ -72,6 +72,11 @@ export class TranscriptionJobService {
   /** 録音失敗状態を通知 */
   notifyRecordingFailure(message: string): void {
     this.recordingStartedAt = null
+    this.notifyFailure(message)
+  }
+
+  /** 失敗状態を通知 */
+  notifyFailure(message: string): void {
     this.setNotification({
       id: randomUUID(),
       kind: 'failed',
@@ -85,7 +90,6 @@ export class TranscriptionJobService {
     const jobId = randomUUID()
     const createdAt = new Date().toISOString()
     this.activeJobIds.add(jobId)
-    this.stopRecording()
     this.publishStatus()
 
     this.loggerService.infoWithDetails('文字起こしジョブを開始しました', {

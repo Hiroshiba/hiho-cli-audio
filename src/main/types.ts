@@ -1,4 +1,5 @@
 export type { StatusWindowState } from '../shared/types/status'
+export type { RecordingData } from '../shared/types/recording'
 
 /** アプリケーション設定 */
 export interface AppConfig {
@@ -117,12 +118,6 @@ export interface TranscriptionResult {
   text: string
   /** コスト情報 */
   costInfo: CostInfo
-}
-
-/** IPC通信用の録音データ */
-export interface RecordingData {
-  /** WebM形式音声データ */
-  webmData: Uint8Array
 }
 
 /** 変換済み音声ファイル */
