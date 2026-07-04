@@ -15,8 +15,13 @@ type HistoryLoadState =
     }
 
 const FAILED_HISTORY_TEXT = '文字起こし失敗'
+const COPIED_HISTORY_TEXT = 'コピーしました'
+const COPIED_FEEDBACK_MILLISECONDS = 1600
 
 const loadState = ref<HistoryLoadState>({ kind: 'loading' })
+const copiedHistoryItemId = ref<string | null>(null)
+let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null
+let removeHistoryUpdatedListener: (() => void) | null = null
 
 const historyItems = computed((): readonly HistoryItem[] => {
   if (loadState.value.kind !== 'loaded') {
@@ -55,9 +60,29 @@ async function handleCompletedItemClick(item: HistoryItem): Promise<void> {
     if (!copied) {
       throw new Error(`履歴項目をコピーできませんでした: ${item.id}`)
     }
+
+    showCopyFeedback(item.id)
   } catch (error) {
     console.error('履歴項目のコピーに失敗しました', error)
   }
+}
+
+function showCopyFeedback(itemId: string): void {
+  clearCopyFeedbackTimer()
+  copiedHistoryItemId.value = itemId
+  copyFeedbackTimer = setTimeout(() => {
+    copiedHistoryItemId.value = null
+    copyFeedbackTimer = null
+  }, COPIED_FEEDBACK_MILLISECONDS)
+}
+
+function clearCopyFeedbackTimer(): void {
+  if (copyFeedbackTimer == null) {
+    return
+  }
+
+  clearTimeout(copyFeedbackTimer)
+  copyFeedbackTimer = null
 }
 
 function formatCompletedAt(completedAt: string): string {
@@ -80,6 +105,10 @@ function handleWindowFocus(): void {
   void loadHistoryItems()
 }
 
+function handleHistoryUpdated(): void {
+  void loadHistoryItems()
+}
+
 function handleVisibilityChange(): void {
   if (document.visibilityState === 'visible') {
     void loadHistoryItems()
@@ -88,11 +117,18 @@ function handleVisibilityChange(): void {
 
 onMounted(() => {
   void loadHistoryItems()
+  removeHistoryUpdatedListener = window.api.history.onUpdated(handleHistoryUpdated)
   window.addEventListener('focus', handleWindowFocus)
   document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onUnmounted(() => {
+  if (removeHistoryUpdatedListener != null) {
+    removeHistoryUpdatedListener()
+    removeHistoryUpdatedListener = null
+  }
+
+  clearCopyFeedbackTimer()
   window.removeEventListener('focus', handleWindowFocus)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
@@ -120,12 +156,20 @@ onUnmounted(() => {
           v-if="item.status === 'completed'"
           type="button"
           class="history-item history-item-completed"
+          :class="{ 'history-item-copied': copiedHistoryItemId === item.id }"
           @click="handleCompletedItemClick(item)"
         >
           <time class="history-time" :datetime="item.completedAt">
             {{ formatCompletedAt(item.completedAt) }}
           </time>
           <span class="history-preview">{{ item.preview }}</span>
+          <span
+            class="history-copy-feedback"
+            :class="{ 'history-copy-feedback-visible': copiedHistoryItemId === item.id }"
+            aria-live="polite"
+          >
+            {{ COPIED_HISTORY_TEXT }}
+          </span>
         </button>
 
         <div v-else class="history-item history-item-failed">
@@ -220,12 +264,20 @@ onUnmounted(() => {
   text-align: left;
 }
 
+.history-item-copied {
+  background: #eefbf4;
+}
+
 .history-item-completed {
   cursor: pointer;
 }
 
 .history-item-completed:hover {
   background: #eef6ff;
+}
+
+.history-item-completed.history-item-copied:hover {
+  background: #e3f7eb;
 }
 
 .history-item-completed:focus-visible {
@@ -254,5 +306,20 @@ onUnmounted(() => {
   white-space: pre-line;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+}
+
+.history-copy-feedback {
+  display: block;
+  min-height: 17px;
+  margin-top: 6px;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  visibility: hidden;
+}
+
+.history-copy-feedback-visible {
+  visibility: visible;
 }
 </style>

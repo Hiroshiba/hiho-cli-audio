@@ -52,6 +52,17 @@ const api = {
       }
 
       return copied
+    },
+    onUpdated: (callback: () => void): (() => void) => {
+      const listener = (): void => {
+        callback()
+      }
+
+      ipcRenderer.on('history:updated', listener)
+
+      return () => {
+        ipcRenderer.removeListener('history:updated', listener)
+      }
     }
   },
   status: {

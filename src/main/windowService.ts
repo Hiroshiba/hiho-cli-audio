@@ -151,7 +151,7 @@ export class WindowService {
       height: HISTORY_WINDOW_HEIGHT,
       minWidth: HISTORY_WINDOW_NARROW_WIDTH,
       minHeight: 360,
-      show: false,
+      show: true,
       center: true,
       autoHideMenuBar: true,
       webPreferences: {

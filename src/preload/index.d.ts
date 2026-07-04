@@ -6,6 +6,7 @@ interface API {
   history: {
     list: () => Promise<readonly HistoryItem[]>
     copy: (id: string) => Promise<boolean>
+    onUpdated: (callback: () => void) => () => void
   }
   status: {
     getCurrent: () => Promise<StatusWindowState>

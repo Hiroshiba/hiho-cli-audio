@@ -6,6 +6,7 @@ import type { HistoryItem } from '../shared/types/history'
 import { writeFileAtomic } from './atomicFile'
 import { ConfigService } from './configService'
 import { LoggerService } from './loggerService'
+import { WindowService } from './windowService'
 
 const FAILED_PREVIEW = '文字起こし失敗'
 const EMPTY_TRANSCRIPT_PREVIEW = '文字起こし結果が空です'
@@ -160,6 +161,7 @@ export class HistoryService {
     const removedItems = sortedItems.slice(config.history.maxItems)
 
     await this.saveHistoryFile({ items: retainedItems })
+    this.notifyHistoryUpdated()
     await this.removeAudioFiles(removedItems)
 
     this.loggerService.infoWithDetails('履歴項目を保存しました', {
@@ -223,6 +225,14 @@ export class HistoryService {
           cause: error
         })
       }
+    }
+  }
+
+  private notifyHistoryUpdated(): void {
+    try {
+      WindowService.getExistingInstance().getHistoryWindow().webContents.send('history:updated')
+    } catch (error) {
+      this.loggerService.error('履歴ウィンドウへの更新通知に失敗しました', error)
     }
   }
 
