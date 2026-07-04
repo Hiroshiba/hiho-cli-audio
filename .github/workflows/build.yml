@@ -1,11 +1,14 @@
-name: Build
+name: Release
+
+run-name: Release ${{ inputs.version }}
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'package.jsonに設定するバージョン'
+        description: 'package.jsonとGitHub Releaseに設定するバージョン。例: 1.0.1'
         required: true
+        type: string
 
 permissions:
   contents: read
@@ -27,14 +30,12 @@ jobs:
             artifact_name: hiho-cli-audio-windows
             artifact_path: |
               dist/*.exe
-              dist/*.blockmap
           - os: macos-latest
             label: macOS
             build_args: --mac
             artifact_name: hiho-cli-audio-macos
             artifact_path: |
               dist/*.dmg
-              dist/*.blockmap
 
     runs-on: ${{ matrix.os }}
 
@@ -58,7 +59,7 @@ jobs:
         run: pnpm install
 
       - name: <Setup> package.jsonのバージョン更新
-        run: pnpm version ${{ github.event.inputs.version }} --no-git-tag-version
+        run: pnpm version "${{ inputs.version }}" --no-git-tag-version
 
       - name: <Check> TypeScript型チェック
         run: pnpm typecheck
@@ -78,3 +79,34 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.artifact_path }}
           if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: <Artifact> 成果物の取得
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: <Release> GitHub Releaseへのデプロイ
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_NOTES: |
+            WindowsとmacOSのインストーラーです。
+            署名と公証は行っていません。
+          RELEASE_TAG: ${{ inputs.version }}
+          RELEASE_TITLE: ${{ inputs.version }}
+        run: |
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" --title "${RELEASE_TITLE}" --notes "${RELEASE_NOTES}" --target "${GITHUB_SHA}"
+            gh release upload "${RELEASE_TAG}" release-assets/* --clobber
+          else
+            gh release create "${RELEASE_TAG}" release-assets/* --title "${RELEASE_TITLE}" --notes "${RELEASE_NOTES}" --target "${GITHUB_SHA}"
+          fi

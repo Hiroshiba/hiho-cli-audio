@@ -10,7 +10,7 @@ hiho-cli-audioは、WindowsとmacOS向けの個人用Electron常駐アプリで�
 
 画面は常時表示しません。主なUIは、録音中、認識中、完了、失敗だけを短時間表示する小型状態ウィンドウと、過去結果を再コピーする小型履歴ウィンドウです。録音用レンダラーはMediaRecorderを動かすための非表示ウィンドウです。
 
-Linux、アプリ内設定画面、自動更新、GitHub Releases連携、署名、公証は初期版の対象外です。
+Linux、アプリ内設定画面、自動更新、署名、公証は初期版の対象外です。
 
 ## 主要コマンド
 
@@ -149,11 +149,10 @@ APIキーは `config.yaml` に平文保存します。作業中にユーザー�
 - macOSはDMG
 - Linuxは対象外
 - 自動更新は対象外
-- GitHub Releasesへの公開は対象外
 - macOS署名は `mac.identity: null` で無効化する
 - 公証は対象外
 
-`.github/workflows/build.yml` は手動実行のビルドワークフローです。指定されたバージョンを `package.json` に反映し、型チェック、ESLint、electron-viteビルド、electron-builderパッケージ作成を実行します。成果物はActions artifactとして保存します。
+`.github/workflows/build.yml` は手動実行のリリースワークフローです。指定されたバージョンを `package.json` に反映し、型チェック、ESLint、electron-viteビルド、electron-builderパッケージ作成を実行します。インストーラーを指定したバージョンのGitHub Releaseへアップロードします。
 
 ## プロジェクト構造
 

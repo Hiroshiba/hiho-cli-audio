@@ -96,7 +96,7 @@ pnpm build:win
 pnpm build:mac
 ```
 
-GitHub Actionsの `Build` ワークフローはWindowsとmacOSの成果物を作成し、Actions artifactとして保存します。GitHub Releasesへの公開、自動更新、署名、公証は行いません。
+GitHub Actionsの `Release` ワークフローはインストーラーを作成し、指定したバージョンのGitHub Releaseへアップロードします。自動更新、署名、公証は行いません。
 
 ## ライセンス
 
