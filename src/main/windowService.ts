@@ -7,13 +7,13 @@ import { LoggerService } from './loggerService'
 
 const STATUS_WINDOW_STATE_NAME = 'status'
 const HISTORY_WINDOW_STATE_NAME = 'history'
-const STATUS_WINDOW_WIDTH = 280
+const STATUS_WINDOW_WIDTH = 360
 const STATUS_WINDOW_HEIGHT = 72
 const STATUS_WINDOW_MARGIN_X = 24
 const STATUS_WINDOW_MARGIN_Y = 72
-const HISTORY_WINDOW_NARROW_WIDTH = 360
+const HISTORY_WINDOW_NARROW_WIDTH = 320
 const HISTORY_WINDOW_WIDE_WIDTH = 520
-const HISTORY_WINDOW_HEIGHT = 560
+const HISTORY_WINDOW_HEIGHT = 520
 const RECORDING_WINDOW_WIDTH = 320
 const RECORDING_WINDOW_HEIGHT = 240
 
@@ -126,6 +126,7 @@ export class WindowService {
       ...this.getStatusWindowBounds(),
       show: false,
       frame: false,
+      transparent: true,
       resizable: false,
       minimizable: false,
       maximizable: false,

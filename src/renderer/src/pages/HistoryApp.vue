@@ -137,6 +137,7 @@ onUnmounted(() => {
 <template>
   <main class="history-window">
     <header class="history-header">
+      <span class="history-header-icon" aria-hidden="true"></span>
       <h1>履歴</h1>
     </header>
 
@@ -194,9 +195,10 @@ onUnmounted(() => {
 
 :global(body) {
   overflow: hidden;
-  color: #172033;
-  background: #f8fafc;
+  color: #2b2620;
+  background: #f3ede4;
   font-family:
+    'Zen Maru Gothic',
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
@@ -206,22 +208,50 @@ onUnmounted(() => {
 
 .history-window {
   display: flex;
+  box-sizing: border-box;
   height: 100vh;
   flex-direction: column;
-  background: #f8fafc;
+  border: 1px solid #f1ead0;
+  background: #fffdfa;
 }
 
 .history-header {
-  padding: 14px 16px;
-  border-bottom: 1px solid #d7dde8;
-  background: #ffffff;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 20px 16px;
+  border-bottom: 1px solid #f0e9dc;
+  background: linear-gradient(180deg, #fffefb, #fffdf9);
   user-select: none;
+}
+
+.history-header-icon {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  background: #eaf1fe;
+}
+
+.history-header-icon::after {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 11px;
+  height: 8px;
+  border-bottom: 2.5px solid #3363a8;
+  border-left: 2.5px solid #3363a8;
+  content: '';
+  transform: rotate(-45deg) translate(1px, -1px);
 }
 
 .history-header h1 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 700;
+  color: #2b2620;
+  font-size: 15.5px;
+  font-weight: 900;
   line-height: 1.4;
 }
 
@@ -231,7 +261,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  color: #64748b;
+  color: #8a8175;
   font-size: 14px;
   line-height: 1.6;
   text-align: center;
@@ -240,32 +270,36 @@ onUnmounted(() => {
 .history-list {
   flex: 1;
   min-height: 0;
-  padding: 0;
+  padding: 10px;
   margin: 0;
   overflow-y: auto;
   list-style: none;
 }
 
 .history-list-item {
-  margin: 0;
+  margin: 0 0 8px;
+}
+
+.history-list-item:last-child {
+  margin-bottom: 0;
 }
 
 .history-item {
   display: block;
   box-sizing: border-box;
   width: 100%;
-  min-height: 94px;
-  padding: 12px 16px 14px;
+  min-height: 90px;
+  padding: 10px 12px 11px;
   border: 0;
-  border-bottom: 1px solid #dfe5ef;
-  background: #ffffff;
+  border-radius: 14px;
+  background: #faf7f1;
   color: inherit;
   font: inherit;
   text-align: left;
 }
 
 .history-item-copied {
-  background: #eefbf4;
+  background: #eaf1fe;
 }
 
 .history-item-completed {
@@ -273,50 +307,100 @@ onUnmounted(() => {
 }
 
 .history-item-completed:hover {
-  background: #eef6ff;
+  background: #eaf1fe;
 }
 
 .history-item-completed.history-item-copied:hover {
-  background: #e3f7eb;
+  background: #eaf1fe;
 }
 
 .history-item-completed:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid #3363a8;
   outline-offset: -2px;
 }
 
 .history-item-failed {
-  color: #687386;
+  background: #fdecea;
+  box-shadow: inset 0 0 0 1px rgba(179, 57, 42, 0.14);
+  color: #b3392a;
 }
 
 .history-time {
   display: block;
   margin-bottom: 6px;
-  color: #526070;
-  font-size: 12px;
+  color: #a39a8c;
+  font-size: 11.5px;
+  font-weight: 700;
   line-height: 1.4;
+}
+
+.history-item-failed .history-time {
+  color: #c07d70;
 }
 
 .history-preview {
   display: -webkit-box;
   overflow: hidden;
-  font-size: 14px;
-  line-height: 1.5;
+  color: #413a30;
+  font-size: 13.5px;
+  line-height: 1.55;
   overflow-wrap: anywhere;
   white-space: pre-line;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
+}
+
+.history-item-failed .history-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #b3392a;
+  font-weight: 700;
+  white-space: normal;
+}
+
+.history-item-failed .history-preview::before {
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #b3392a;
+  color: #ffffff;
+  content: '!';
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 15px;
 }
 
 .history-copy-feedback {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   min-height: 17px;
-  margin-top: 6px;
-  color: #0f766e;
-  font-size: 12px;
+  margin-top: 7px;
+  color: #3363a8;
+  font-size: 11.5px;
   font-weight: 700;
   line-height: 1.4;
   visibility: hidden;
+}
+
+.history-copy-feedback::before {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #3363a8;
+  color: #ffffff;
+  content: '✓';
+  font-size: 10px;
+  line-height: 14px;
 }
 
 .history-copy-feedback-visible {
