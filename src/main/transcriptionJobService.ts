@@ -140,8 +140,7 @@ export class TranscriptionJobService {
         jobId,
         audioId: processedAudio.id,
         wavFilePath: processedAudio.wavFilePath,
-        textLength: transcriptionResult.text.length,
-        costInfo: transcriptionResult.costInfo
+        textLength: transcriptionResult.text.length
       })
 
       await this.recordCompletedHistoryItem(processedAudio, createdAt, transcriptionResult.text)

@@ -102,22 +102,10 @@ export interface Config {
   vocabulary: readonly VocabularyEntry[]
 }
 
-/** コスト情報 */
-export interface CostInfo {
-  /** プロンプト使用トークン数 */
-  promptTokens: number
-  /** 出力使用トークン数 */
-  outputTokens: number
-  /** 推定コスト */
-  costUsd: number
-}
-
 /** 音声認識結果 */
 export interface TranscriptionResult {
   /** 認識されたテキスト */
   text: string
-  /** コスト情報 */
-  costInfo: CostInfo
 }
 
 /** 変換済み音声ファイル */

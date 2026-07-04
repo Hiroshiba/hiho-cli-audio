@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
-import { CostInfo, GeminiConfig, TranscriptionResult, VocabularyEntry } from './types'
+import { GeminiConfig, TranscriptionResult, VocabularyEntry } from './types'
 
 /** Gemini API クライアント */
 export class GeminiClient {
@@ -11,7 +11,7 @@ export class GeminiClient {
     this.ai = new GoogleGenAI({ apiKey: config.apiKey })
   }
 
-  /** WAVファイルをテキストに変換し、コスト情報も返す */
+  /** WAVファイルをテキストに変換する */
   async transcribe(
     wavFilePath: string,
     vocabularyEntries: readonly VocabularyEntry[],
@@ -43,12 +43,8 @@ export class GeminiClient {
       ]
     })
 
-    const usage = response.usageMetadata
-    const costInfo = this.calculateCost(usage)
-
     return {
-      text: response.text || '',
-      costInfo
+      text: response.text || ''
     }
   }
 
@@ -80,26 +76,5 @@ ${speechPreservationInstruction}
     }
 
     return prompt.trim()
-  }
-
-  /** トークン使用量からコスト計算 */
-  private calculateCost(
-    usage: { promptTokenCount?: number; candidatesTokenCount?: number } | undefined
-  ): CostInfo {
-    const promptTokens = usage?.promptTokenCount || 0
-    const outputTokens = usage?.candidatesTokenCount || 0
-
-    const inputPricePerMillion = 1.25
-    const outputPricePerMillion = 10.0
-
-    const costUsd =
-      (promptTokens / 1_000_000) * inputPricePerMillion +
-      (outputTokens / 1_000_000) * outputPricePerMillion
-
-    return {
-      promptTokens,
-      outputTokens,
-      costUsd
-    }
   }
 }
