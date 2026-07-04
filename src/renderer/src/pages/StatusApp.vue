@@ -132,9 +132,9 @@ onUnmounted(() => {
 }
 
 .status-pill {
-  display: inline-flex;
+  display: flex;
   box-sizing: border-box;
-  max-width: 100%;
+  width: 100%;
   min-height: 42px;
   align-items: center;
   gap: 10px;
