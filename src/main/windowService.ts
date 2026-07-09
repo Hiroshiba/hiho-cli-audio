@@ -90,7 +90,9 @@ export class WindowService {
 
   /** 状態ウィンドウを表示 */
   showStatusWindow(): void {
-    this.getStatusWindow().showInactive()
+    const statusWindow = this.getStatusWindow()
+    statusWindow.showInactive()
+    this.moveAlwaysOnTopWindowToFront(statusWindow)
   }
 
   /** 状態ウィンドウを非表示 */
@@ -107,6 +109,7 @@ export class WindowService {
     }
 
     historyWindow.show()
+    this.moveAlwaysOnTopWindowToFront(historyWindow)
     historyWindow.focus()
   }
 
@@ -229,16 +232,10 @@ export class WindowService {
   }
 
   private enableAlwaysOnTop(window: BrowserWindow): void {
-    window.setAlwaysOnTop(true)
+    window.setAlwaysOnTop(true, 'floating')
 
     if (process.platform === 'darwin') {
       window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-      window.setAlwaysOnTop(true, 'floating')
-      return
-    }
-
-    if (process.platform === 'win32') {
-      window.setAlwaysOnTop(true, 'normal')
     }
   }
 
@@ -248,6 +245,15 @@ export class WindowService {
     if (process.platform === 'darwin') {
       window.setVisibleOnAllWorkspaces(false)
     }
+  }
+
+  private moveAlwaysOnTopWindowToFront(window: BrowserWindow): void {
+    if (!this.config.app.alwaysOnTop) {
+      return
+    }
+
+    this.enableAlwaysOnTop(window)
+    window.moveTop()
   }
 
   private setupExternalLinkHandler(window: BrowserWindow): void {
