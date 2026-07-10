@@ -4,6 +4,7 @@ import { is } from '@electron-toolkit/utils'
 import { Config } from './types'
 import { StateService } from './stateService'
 import { LoggerService } from './loggerService'
+import { APP_ICON_PATH } from './appIcon'
 
 const STATUS_WINDOW_STATE_NAME = 'status'
 const HISTORY_WINDOW_STATE_NAME = 'history'
@@ -135,6 +136,7 @@ export class WindowService {
       maximizable: false,
       fullscreenable: false,
       skipTaskbar: true,
+      icon: APP_ICON_PATH,
       autoHideMenuBar: true,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -157,6 +159,7 @@ export class WindowService {
       minHeight: 360,
       show: true,
       center: true,
+      icon: APP_ICON_PATH,
       autoHideMenuBar: true,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -177,6 +180,7 @@ export class WindowService {
       height: RECORDING_WINDOW_HEIGHT,
       show: false,
       skipTaskbar: true,
+      icon: APP_ICON_PATH,
       autoHideMenuBar: true,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),

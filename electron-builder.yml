@@ -14,6 +14,7 @@ asarUnpack:
   - resources/**
 win:
   executableName: hiho-cli-audio
+  icon: build/icon.ico
   target:
     - nsis
 nsis:
@@ -23,6 +24,7 @@ nsis:
   createDesktopShortcut: always
 mac:
   entitlementsInherit: build/entitlements.mac.plist
+  icon: build/icon.icns
   identity: null
   target:
     - dmg

@@ -1,5 +1,5 @@
 import { app, Menu, nativeImage, Tray } from 'electron'
-import { join } from 'node:path'
+import { APP_ICON_PATH } from './appIcon'
 import { LoggerService } from './loggerService'
 import { WindowService } from './windowService'
 
@@ -57,11 +57,10 @@ export class TrayService {
   }
 
   private createTrayIcon(): Electron.NativeImage {
-    const iconPath = join(__dirname, '../../resources/icon.png')
-    const icon = nativeImage.createFromPath(iconPath)
+    const icon = nativeImage.createFromPath(APP_ICON_PATH)
 
     if (icon.isEmpty()) {
-      throw new Error(`トレイアイコンを読み込めませんでした: ${iconPath}`)
+      throw new Error(`トレイアイコンを読み込めませんでした: ${APP_ICON_PATH}`)
     }
 
     const trayIcon = icon.resize({ width: TRAY_ICON_SIZE, height: TRAY_ICON_SIZE })
