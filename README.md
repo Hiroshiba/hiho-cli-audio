@@ -19,6 +19,14 @@
 
 Linux向けビルドは提供しません。
 
+## macOS版の初回起動
+
+初回起動時に「hiho-cli-audio.appは壊れているため開けません」と表示された場合は、次のコマンドを実行してください。
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/hiho-cli-audio.app"
+```
+
 ## 使い方
 
 1. アプリケーションを起動する
