@@ -1,0 +1,52 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: <Setup> リポジトリのチェックアウト
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: <Setup> pnpmの設定
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+
+      - name: <Setup> Node.jsとpnpmキャッシュの設定
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: '.node-version'
+          cache: 'pnpm'
+
+      - name: <Setup> 依存関係のインストール
+        run: pnpm install --frozen-lockfile
+
+      - name: <Test> TypeScript型チェック
+        run: pnpm typecheck
+
+      - name: <Test> ESLintの実行
+        run: pnpm lint
+
+      - name: <Test> アプリケーションのビルド
+        run: pnpm run build
+
+      - name: <Test> pinactの確認
+        uses: suzuki-shunsuke/pinact-action@896d595f299e71d65b9d28349d6956abe144390a # v3.0.0
+        with:
+          fix: false
+          min_age: '7'

@@ -97,6 +97,18 @@ pnpm typecheck
 pnpm build
 ```
 
+### GitHub Actionsのバージョン固定
+
+[pinact](https://github.com/suzuki-shunsuke/pinact)を使ってGitHub Actionsのバージョンをfull-length commit SHAに固定しています。
+
+```bash
+# バージョンを固定する
+pinact run
+
+# バージョンを更新して固定する
+pinact run --update --min-age 7
+```
+
 ## ビルド
 
 ```bash
