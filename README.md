@@ -63,8 +63,11 @@ transcription:
   provider: 'gemini'
   gemini:
     apiKey: 'your-gemini-api-key'
-    model: 'gemini-2.5-flash'
+    model: 'gemini-3.5-transcribe'
   language: 'ja-JP'
+  mode: 'verbatim'
+  customVocabulary:
+    - 'Gemini'
 
 history:
   maxItems: 10
@@ -74,13 +77,12 @@ windows:
     initialPosition: 'top-right-offset'
   history:
     narrow: true
-
-vocabulary:
-  - reading: 'じぇみに'
-    output: 'Gemini'
 ```
 
 設定の変更はアプリケーション再起動後に反映されます。
+
+`transcription.mode` は発話をそのまま残す `verbatim` または読みやすく整える `smart` を指定します。
+`transcription.customVocabulary` には認識時に優先する固有名詞や専門用語を最大1000件指定できます。
 
 ## 開発
 

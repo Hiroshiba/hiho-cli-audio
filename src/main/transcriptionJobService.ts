@@ -137,12 +137,11 @@ export class TranscriptionJobService {
       processedAudio = processResult.data
       const config = this.configService.getConfig()
       const geminiClient = this.geminiService.getClient()
-      const transcriptionResult = await geminiClient.transcribe(
-        processedAudio.wavFilePath,
-        config.vocabulary,
-        config.transcription.language,
-        config.transcription.preserveSpeechAsMuchAsPossible
-      )
+      const transcriptionResult = await geminiClient.transcribe(processedAudio.wavFilePath, {
+        language: config.transcription.language,
+        mode: config.transcription.mode,
+        customVocabulary: config.transcription.customVocabulary
+      })
 
       clipboard.writeText(transcriptionResult.text)
 

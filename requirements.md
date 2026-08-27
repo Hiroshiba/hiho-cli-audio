@@ -107,18 +107,22 @@
 #### 5. Gemini APIによる文字起こし
 
 - 文字起こしにはGemini APIを使用する。
+- 録音済み音声の文字起こしにはInteractions APIとGemini 3.5 Transcribeを使用する。
 - Gemini APIキーはYAML設定ファイルに平文保存する。
 - Geminiモデル名はYAMLで指定可能にする。
-- モデルの初期値は実装時点で有効な音声入力対応モデルを採用する。
+- モデルの初期値は`gemini-3.5-transcribe`とする。
 - 主な認識言語は日本語のみ。
-- 文字起こし結果は、話した内容をできるだけそのまま出す方針とする。
-- 文章化、要約、言い換え、フィラー除去、積極的な整形は行わない。
+- 文字起こしモードはYAMLで`verbatim`または`smart`を指定可能にする。
+- 文字起こしモードの初期値は`verbatim`とする。
+- `verbatim`では話した内容をできるだけそのまま出し、文章化、要約、言い換え、フィラー除去、積極的な整形は行わない。
+- `smart`では発話内容の意味を維持しながら、フィラー除去、自己訂正の反映、句読点や文章構造の整形を行う。
 
 #### 6. カスタム語彙
 
 - カスタム語彙はYAML設定ファイルに登録できる。
-- 形式は「読み方 → 出力変換」の組を想定する。
-- カスタム語彙はGeminiへのプロンプトに渡すだけとする。
+- 形式は認識時に優先する固有名詞や専門用語の文字列配列とする。
+- カスタム語彙は最大1000件とする。
+- カスタム語彙はGemini Transcribeの`custom_vocabulary`に渡す。
 - 文字起こし後の機械的な置換処理は行わない。
 
 #### 7. 自動クリップボードコピー
@@ -355,37 +359,35 @@ app:
 
 hotkeys:
   toggleRecording:
-    windows: "Control+Shift+D"
-    macos: "Command+Shift+D"
+    windows: 'Control+Shift+D'
+    macos: 'Command+Shift+D'
 
 recording:
   autoStopSeconds: 300
 
 transcription:
-  provider: "gemini"
+  provider: 'gemini'
   gemini:
-    apiKey: ""
-    model: ""
-  language: "ja-JP"
-  preserveSpeechAsMuchAsPossible: true
+    apiKey: ''
+    model: 'gemini-3.5-transcribe'
+  language: 'ja-JP'
+  mode: 'verbatim'
+  customVocabulary:
+    - 'Gemini'
 
 history:
   maxItems: 10
 
 windows:
   status:
-    initialPosition: "top-right-offset"
+    initialPosition: 'top-right-offset'
   history:
     narrow: true
-
-vocabulary:
-  - reading: "じぇみに"
-    output: "Gemini"
 ```
 
 補足:
 
-- `transcription.gemini.model` が空の場合、実装時点で有効な音声入力対応Geminiモデルをデフォルトとして採用する。
+- `transcription.gemini.model` にはGemini Transcribe対応モデルを指定する。
 - 実行中にYAMLを変更しても反映しない。反映は再起動時のみ。
 - APIキーは平文保存でよい。
 - APIキーは前後の空白文字を除去してから使用する。空白のみの場合は未設定として扱う。
@@ -413,24 +415,14 @@ ffmpeg -y -i input.webm -ac 1 -ar 16000 output.wav
 
 ### Gemini API仕様
 
-- WAVファイルをGemini APIに送信して文字起こしする。
-- プロンプトは日本語文字起こし専用にする。
-- 発話内容をできるだけそのまま出力する。
-- 要約、言い換え、文章整形、フィラー除去を避ける。
-- カスタム語彙はプロンプトに含める。
+- WAVファイルをGemini Files APIへアップロードする。
+- アップロードした音声URIをInteractions APIの`gemini-3.5-transcribe`へ送信する。
+- 言語、文字起こしモード、カスタム語彙は`generation_config.transcription_config`で指定する。
+- `verbatim`では発話内容をできるだけそのまま出力する。
+- `smart`では発話内容を読みやすく整える。
+- 文字起こし結果は`output_text`から取得する。
+- アップロードした音声は文字起こしの成否にかかわらず処理後に削除する。
 - 機械的な後処理置換は行わない。
-
-プロンプト方針の例:
-
-```text
-以下の日本語音声を文字起こししてください。
-発話内容をできるだけそのまま文字にしてください。
-要約、言い換え、補足、過度な整形、フィラー除去は避けてください。
-句読点は必要最低限で構いません。
-
-カスタム語彙がある場合は、可能な範囲で次の表記を優先してください。
-- 読み: ... / 出力: ...
-```
 
 ### クリップボード仕様
 
@@ -446,14 +438,14 @@ ffmpeg -y -i input.webm -ac 1 -ar 16000 output.wav
 
 ```ts
 type HistoryItem = {
-  id: string;
-  createdAt: string;
-  completedAt: string | null;
-  status: "success" | "failed";
-  transcript: string | null;
-  preview: string;
-  audioPath: string | null;
-};
+  id: string
+  createdAt: string
+  completedAt: string | null
+  status: 'success' | 'failed'
+  transcript: string | null
+  preview: string
+  audioPath: string | null
+}
 ```
 
 表示:
@@ -535,6 +527,7 @@ type HistoryItem = {
 - Gemini APIキーはYAMLに平文保存する。
 - ローカル履歴と音声ログは暗号化しない前提。
 - 音声データは文字起こしのためGemini APIへ送信される。
+- Gemini Files APIへアップロードした音声は文字起こし処理後に削除する。
 - チーム利用や第三者配布を前提としたセキュリティ対策は初期スコープ外。
 - ただし、不要な外部送信や分析SDKは入れない。
 
@@ -770,8 +763,6 @@ type HistoryItem = {
 - 小型状態ウィンドウの具体的な幅・高さ・フォントサイズ。
 - 履歴ウィンドウの具体的な幅・高さ。
 - 内部ログのローテーション方式。
-- Gemini APIクライアント実装の具体的なSDK・HTTP方式。
-- 初期Geminiモデル名。
 - ビルド成果物形式。例: Windows NSIS/portable、macOS dmg/zipなど。
 
 ---

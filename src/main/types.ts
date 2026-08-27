@@ -30,6 +30,9 @@ export interface RecordingConfig {
 /** 文字起こしプロバイダー */
 export type TranscriptionProvider = 'gemini'
 
+/** 文字起こしモード */
+export type TranscriptionMode = 'verbatim' | 'smart'
+
 /** Gemini API設定 */
 export interface GeminiConfig {
   /** Gemini APIキー */
@@ -46,8 +49,10 @@ export interface TranscriptionConfig {
   gemini: GeminiConfig
   /** 認識言語 */
   language: string
-  /** 発話をできるだけ保持するか */
-  preserveSpeechAsMuchAsPossible: boolean
+  /** 文字起こしモード */
+  mode: TranscriptionMode
+  /** 認識時に優先するカスタム語彙 */
+  customVocabulary: readonly string[]
 }
 
 /** 履歴設定 */
@@ -76,14 +81,6 @@ export interface WindowsConfig {
   history: HistoryWindowConfig
 }
 
-/** 語彙エントリー */
-export interface VocabularyEntry {
-  /** 読み方 */
-  reading: string
-  /** 出力表記 */
-  output: string
-}
-
 /** アプリケーション設定 */
 export interface Config {
   /** アプリケーション設定 */
@@ -98,8 +95,6 @@ export interface Config {
   history: HistoryConfig
   /** ウィンドウ設定 */
   windows: WindowsConfig
-  /** カスタム語彙 */
-  vocabulary: readonly VocabularyEntry[]
 }
 
 /** 音声認識結果 */

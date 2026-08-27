@@ -1,10 +1,30 @@
 import { GoogleGenAI } from '@google/genai'
-import { GeminiConfig, TranscriptionResult, VocabularyEntry } from './types'
+import { z } from 'zod'
+import { GeminiConfig, Result, TranscriptionMode, TranscriptionResult } from './types'
+
+interface TranscriptionOptions {
+  language: string
+  mode: TranscriptionMode
+  customVocabulary: readonly string[]
+}
+
+interface TranscriptionApiConfig {
+  language_codes: string[]
+  custom_vocabulary: string[]
+  mode: TranscriptionMode
+}
+
+const CompletedInteractionSchema = z
+  .object({
+    status: z.literal('completed'),
+    output_text: z.string().trim().min(1, 'Gemini の文字起こし結果が空です')
+  })
+  .passthrough()
 
 /** Gemini API クライアント */
 export class GeminiClient {
-  private ai: GoogleGenAI
-  private config: GeminiConfig
+  private readonly ai: GoogleGenAI
+  private readonly config: GeminiConfig
 
   constructor(config: GeminiConfig) {
     this.config = config
@@ -14,9 +34,7 @@ export class GeminiClient {
   /** WAVファイルをテキストに変換する */
   async transcribe(
     wavFilePath: string,
-    vocabularyEntries: readonly VocabularyEntry[],
-    language: string,
-    preserveSpeechAsMuchAsPossible: boolean
+    options: TranscriptionOptions
   ): Promise<TranscriptionResult> {
     const uploadedFile = await this.ai.files.upload({
       file: wavFilePath,
@@ -24,62 +42,74 @@ export class GeminiClient {
         mimeType: 'audio/wav'
       }
     })
+    const uploadedFileName = uploadedFile.name
+    assertNonNullable(uploadedFileName, 'アップロード結果にファイル名がありません')
 
-    const prompt = this.createTranscriptionPrompt(
-      vocabularyEntries,
-      language,
-      preserveSpeechAsMuchAsPossible
+    const transcriptionResult = await captureResult(async () => {
+      const uploadedFileUri = uploadedFile.uri
+      assertNonNullable(uploadedFileUri, 'アップロード結果にファイル URI がありません')
+      return this.transcribeUploadedFile(uploadedFileUri, options)
+    })
+    const deletionResult = await captureResult(() =>
+      this.ai.files.delete({ name: uploadedFileName })
     )
 
-    const response = await this.ai.models.generateContent({
-      model: this.config.model,
-      contents: [
-        {
-          parts: [
-            { text: prompt },
-            { fileData: { mimeType: 'audio/wav', fileUri: uploadedFile.uri } }
-          ]
-        }
-      ]
-    })
-
-    const transcriptionText = response.text
-    if (transcriptionText == null || transcriptionText.trim().length === 0) {
-      throw new Error('Gemini の文字起こし結果が空です')
+    if (!transcriptionResult.success && !deletionResult.success) {
+      throw new AggregateError(
+        [transcriptionResult.error, deletionResult.error],
+        '文字起こしとアップロード済みファイルの削除に失敗しました'
+      )
+    }
+    if (!transcriptionResult.success) {
+      throw transcriptionResult.error
+    }
+    if (!deletionResult.success) {
+      throw deletionResult.error
     }
 
-    return {
-      text: transcriptionText
-    }
+    return transcriptionResult.data
   }
 
-  /** 音声認識プロンプトを作成 */
-  private createTranscriptionPrompt(
-    vocabularyEntries: readonly VocabularyEntry[],
-    language: string,
-    preserveSpeechAsMuchAsPossible: boolean
-  ): string {
-    const speechPreservationInstruction = preserveSpeechAsMuchAsPossible
-      ? `話された内容をできるだけそのまま出力してください。
-要約、言い換え、文章の整形、フィラーの除去、表現の補正はしないでください。`
-      : `話された内容の意味を変えない範囲で、自然な文字起こしとして出力してください。
-要約、内容の補足、発話にない情報の追加はしないでください。`
-
-    let prompt = `
-以下の音声を ${language} の発話として書き起こしてください。
-${speechPreservationInstruction}
-聞き取れない箇所は推測で補わず、聞こえた範囲だけを出力してください。
-音楽や効果音など、発話ではない音は出力しないでください。
-出力は文字起こし本文のみとし、説明文や前置きは書かないでください。`
-
-    if (vocabularyEntries.length > 0) {
-      prompt += `\n\n## カスタム語彙\n以下の読み方に聞こえる語は、対応する出力表記を優先してください。文字起こし後の機械的な置換ではなく、音声認識時の参考情報として扱ってください。\n`
-
-      for (const entry of vocabularyEntries) {
-        prompt += `- 「${entry.reading}」は「${entry.output}」と出力\n`
+  private async transcribeUploadedFile(
+    uploadedFileUri: string,
+    options: TranscriptionOptions
+  ): Promise<TranscriptionResult> {
+    const transcriptionConfig = {
+      language_codes: [options.language],
+      custom_vocabulary: [...options.customVocabulary],
+      mode: options.mode
+    } satisfies TranscriptionApiConfig
+    const interaction = await this.ai.interactions.create({
+      model: this.config.model,
+      input: [
+        {
+          type: 'audio',
+          uri: uploadedFileUri,
+          mime_type: 'audio/wav'
+        }
+      ],
+      generation_config: {
+        transcription_config: transcriptionConfig
       }
-    }
+    })
+    const completedInteraction = CompletedInteractionSchema.parse(interaction)
 
-    return prompt.trim()
+    return {
+      text: completedInteraction.output_text
+    }
+  }
+}
+
+async function captureResult<T>(operation: () => Promise<T>): Promise<Result<T, unknown>> {
+  try {
+    return { success: true, data: await operation() }
+  } catch (error) {
+    return { success: false, error }
+  }
+}
+
+function assertNonNullable<T>(value: T, message: string): asserts value is NonNullable<T> {
+  if (value == null) {
+    throw new Error(message)
   }
 }

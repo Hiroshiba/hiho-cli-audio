@@ -118,6 +118,14 @@ const WritableGeminiConfigSchema = GeminiConfigSchema.extend({
   apiKey: z.string().trim()
 }).strict()
 
+/** 文字起こしモードのスキーマ */
+export const TranscriptionModeSchema = z.enum(['verbatim', 'smart'])
+
+/** カスタム語彙のスキーマ */
+export const CustomVocabularySchema = z
+  .array(nonEmptyString('transcription.customVocabulary は1文字以上で入力してください'))
+  .max(1000, 'transcription.customVocabulary は1000件以下で指定してください')
+
 /** 文字起こし設定のスキーマ */
 export const TranscriptionConfigSchema = z
   .object({
@@ -129,7 +137,8 @@ export const TranscriptionConfigSchema = z
       LANGUAGE_PATTERN,
       'transcription.language は ja-JP のような形式で指定してください'
     ),
-    preserveSpeechAsMuchAsPossible: z.boolean()
+    mode: TranscriptionModeSchema,
+    customVocabulary: CustomVocabularySchema
   })
   .strict()
 
@@ -166,14 +175,6 @@ export const WindowsConfigSchema = z
   })
   .strict()
 
-/** 語彙エントリーのスキーマ */
-export const VocabularyEntrySchema = z
-  .object({
-    reading: nonEmptyString('vocabulary.reading は1文字以上で入力してください'),
-    output: nonEmptyString('vocabulary.output は1文字以上で入力してください')
-  })
-  .strict()
-
 /** アプリケーション設定のスキーマ */
 export const ConfigSchema = z
   .object({
@@ -182,8 +183,7 @@ export const ConfigSchema = z
     recording: RecordingConfigSchema,
     transcription: TranscriptionConfigSchema,
     history: HistoryConfigSchema,
-    windows: WindowsConfigSchema,
-    vocabulary: z.array(VocabularyEntrySchema)
+    windows: WindowsConfigSchema
   })
   .strict()
 
@@ -209,10 +209,11 @@ export const DefaultConfig = {
     provider: 'gemini',
     gemini: {
       apiKey: '',
-      model: 'gemini-3.5-flash'
+      model: 'gemini-3.5-transcribe'
     },
     language: 'ja-JP',
-    preserveSpeechAsMuchAsPossible: true
+    mode: 'verbatim',
+    customVocabulary: []
   },
   history: {
     maxItems: 10
@@ -224,8 +225,7 @@ export const DefaultConfig = {
     history: {
       narrow: true
     }
-  },
-  vocabulary: []
+  }
 } satisfies Config
 
 /** 設定ファイルバリデーション結果 */
