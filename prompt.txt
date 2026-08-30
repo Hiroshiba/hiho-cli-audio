@@ -78,26 +78,10 @@ VOICEVOX/voicevoxやVOICEVOX/voicevox_engineの設定に合わせてください
 
 録音中などを表示する小型状態ウィンドウは、デザインが不自然にならない範囲で当たり判定を可能な限り小さくしてください。
 
----
-
-以上が以前のタスクです。
-今回は以下のタスクを実行して下さい。
-
 音声認識開始時にHerdrが前面にあった場合は、Herdrのそのpaneに認識結果が自動的に送られるようにしてください。
 その際、どのHerdrに送られることになっているのかも表示してください。
 送り方などは`docs/herdr調査.md`を参考にしてください。
-
-受け入れ条件:
-
-- `herdr` はHerdr自身の設定ではなく、hiho-cli-audioの `config.yaml` のトップレベル設定とする。全体は任意とし、未設定ならクリップボードだけへ出力する
-- Windowsの設定ファイルは `%APPDATA%\hiho-cli-audio\config.yaml` とする
-- macOSはiTerm2、WindowsはWindows Terminalが前面で、タイトルに `[HERDR]` が含まれる場合だけHerdr targetにする
-- Windows Terminalでは対象タブを右クリックしてタブ名を `[HERDR] Herdr` などへ変更できる。Herdr側の `[ui] window_title` は自動化の候補にとどめ、Herdr 0.8.0では未確認とする
-- 録音開始時のpaneを固定し、録音中に別paneや別アプリへ移動しても開始時のpaneへ送る
-- Herdrへ送る文字列は改行を空白に変え、Enterは送らない
-- clipboard targetだけが原文をクリップボードへ保存する。Herdr targetの成功時はクリップボードを変更せず、成功表示は `Herdrへ入力しました` とする
-- Herdr送信に失敗した場合はクリップボードへフォールバックせず、別paneにも送らず、元エラーを記録して認識原文を成功履歴へ残し、状態ウィンドウに `Herdrへの入力に失敗しました` を表示する
-- 前面判定またはpane取得に失敗した場合はクリップボードへ出力する
-
 実装はChatGPTが言ってることなので鵜呑みにするのを禁止します。
 今のあなたが与えられている規約に従ってください。
+
+`docs/herdr調査.md`を消してください。
