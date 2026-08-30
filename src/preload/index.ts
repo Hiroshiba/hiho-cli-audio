@@ -5,6 +5,8 @@ import { z } from 'zod'
 import type { HistoryItem } from '../shared/types/history'
 import type { StatusWindowState } from '../shared/types/status'
 
+z.config({ jitless: true })
+
 const StatusWindowStateSchema = z.discriminatedUnion('kind', [
   z
     .object({
