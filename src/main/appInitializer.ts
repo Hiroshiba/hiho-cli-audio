@@ -7,6 +7,7 @@ import { ErrorDialogService } from './errorDialogService'
 import { LoggerService } from './loggerService'
 import { TrayService } from './trayService'
 import { HistoryService } from './historyService'
+import { createRecordingTargetResolver } from './recordingTargetResolver'
 import { type AppError, createError } from '../shared/types/error'
 
 /** 起動初期化エラー */
@@ -45,6 +46,10 @@ export class AppInitializer {
   async initialize(): Promise<void> {
     try {
       await this.initializeConfigService()
+      const config = this.configService.getConfig()
+      this.audioIpcHandler.initializeRecordingTargetResolver(
+        createRecordingTargetResolver(config, process.platform)
+      )
       await this.initializeGeminiService()
       await this.initializeWindowService()
       this.initializeTrayService()

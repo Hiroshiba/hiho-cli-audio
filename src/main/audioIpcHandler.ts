@@ -3,9 +3,10 @@ import type { BrowserWindow } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { LoggerService } from './loggerService'
+import type { RecordingTargetResolver } from './recordingTargetResolver'
 import { TranscriptionJobService } from './transcriptionJobService'
 import { WindowService } from './windowService'
-import type { RecordingData } from './types'
+import type { RecordingData, RecordingTarget } from './types'
 import type {
   RecordingErrorPayload,
   RecordingSessionPayload,
@@ -36,20 +37,38 @@ const RecordingStoppedPayloadSchema = RecordingSessionPayloadSchema.extend({
 type RecordingControlState =
   | { kind: 'not-ready'; pendingStart: boolean }
   | { kind: 'idle' }
+  | { kind: 'resolving-target'; sessionId: string; cancelRequested: boolean }
   | { kind: 'starting'; sessionId: string; stopAfterStart: boolean }
   | { kind: 'recording'; sessionId: string }
   | { kind: 'stopping'; sessionId: string; pendingStart: boolean }
+
+type RecordingTargetResolverState =
+  | { kind: 'uninitialized' }
+  | { kind: 'initialized'; resolver: RecordingTargetResolver }
 
 /** 音声関連のIPC通信ハンドラー */
 export class AudioIpcHandler {
   private transcriptionJobService: TranscriptionJobService
   private loggerService: LoggerService
   private recordingState: RecordingControlState = { kind: 'not-ready', pendingStart: false }
+  private recordingTargetResolverState: RecordingTargetResolverState = {
+    kind: 'uninitialized'
+  }
+  private readonly targetsBySessionId = new Map<string, RecordingTarget>()
 
   constructor() {
     this.transcriptionJobService = TranscriptionJobService.getInstance()
     this.loggerService = LoggerService.getInstance()
     this.setupIpcHandlers()
+  }
+
+  /** 録音出力先の解決処理を初期化 */
+  initializeRecordingTargetResolver(resolver: RecordingTargetResolver): void {
+    if (this.recordingTargetResolverState.kind === 'initialized') {
+      throw new Error('録音出力先の解決処理は既に初期化されています')
+    }
+
+    this.recordingTargetResolverState = { kind: 'initialized', resolver }
   }
 
   /** IPC ハンドラーをセットアップ */
@@ -76,7 +95,10 @@ export class AudioIpcHandler {
         this.loggerService.info('録音ウィンドウの準備完了後に録音を開始します')
         return
       case 'idle':
-        this.sendStartRecordingCommand()
+        this.resolveRecordingTargetAndStart()
+        return
+      case 'resolving-target':
+        this.loggerService.info('録音出力先の解決処理中です')
         return
       case 'starting':
         this.loggerService.info('録音開始処理中です')
@@ -119,6 +141,19 @@ export class AudioIpcHandler {
       case 'idle':
         this.loggerService.info('録音は開始されていません')
         return
+      case 'resolving-target':
+        if (state.cancelRequested) {
+          this.loggerService.info('録音出力先の解決キャンセルは既に要求されています')
+          return
+        }
+
+        this.recordingState = {
+          kind: 'resolving-target',
+          sessionId: state.sessionId,
+          cancelRequested: true
+        }
+        this.loggerService.info('録音出力先の解決をキャンセルしました')
+        return
       case 'starting':
         if (state.stopAfterStart) {
           this.loggerService.info('録音開始完了後の録音停止は既に予約されています')
@@ -145,6 +180,11 @@ export class AudioIpcHandler {
 
   /** 録音トグル */
   toggleRecording(): void {
+    if (this.recordingState.kind === 'resolving-target') {
+      this.stopRecording()
+      return
+    }
+
     const state = this.recordingState
 
     if (state.kind === 'starting' || state.kind === 'recording') {
@@ -212,6 +252,12 @@ export class AudioIpcHandler {
 
   private handleRecordingData(_event: Electron.IpcMainEvent, payload: unknown): void {
     const recordingData: RecordingData = RecordingDataSchema.parse(payload)
+    const target = this.targetsBySessionId.get(recordingData.sessionId)
+    if (target == null) {
+      throw new Error(`録音セッションの出力先が見つかりません: ${recordingData.sessionId}`)
+    }
+
+    this.targetsBySessionId.delete(recordingData.sessionId)
 
     console.log('WebM音声データを受信しました:', {
       sessionId: recordingData.sessionId,
@@ -226,11 +272,12 @@ export class AudioIpcHandler {
       this.finishRecordingSession(recordingData.sessionId)
     }
 
-    this.transcriptionJobService.submitRecordingData(recordingData)
+    this.transcriptionJobService.submitRecordingData(recordingData, target)
   }
 
   private handleRecordingError(_event: Electron.IpcMainEvent, payload: unknown): void {
     const recordingErrorPayload: RecordingErrorPayload = RecordingErrorPayloadSchema.parse(payload)
+    this.targetsBySessionId.delete(recordingErrorPayload.sessionId)
 
     if (this.isCurrentSession(recordingErrorPayload.sessionId)) {
       const state = this.recordingState
@@ -247,14 +294,55 @@ export class AudioIpcHandler {
     this.loggerService.error('録音処理に失敗しました', recordingErrorPayload)
   }
 
-  private sendStartRecordingCommand(): void {
+  private resolveRecordingTargetAndStart(): void {
+    const resolver = this.getRecordingTargetResolver()
+    const sessionId = randomUUID()
+    this.recordingState = {
+      kind: 'resolving-target',
+      sessionId,
+      cancelRequested: false
+    }
+    void this.resolveRecordingTarget(sessionId, resolver)
+  }
+
+  private async resolveRecordingTarget(
+    sessionId: string,
+    resolver: RecordingTargetResolver
+  ): Promise<void> {
+    const target = await resolver.resolveAtRecordingStart()
+    const state = this.recordingState
+
+    if (state.kind !== 'resolving-target' || state.sessionId !== sessionId) {
+      throw new Error(`録音出力先の解決対象が一致しません: ${sessionId}`)
+    }
+
+    if (state.cancelRequested) {
+      this.recordingState = { kind: 'idle' }
+      return
+    }
+
+    this.targetsBySessionId.set(sessionId, target)
+    this.sendStartRecordingCommand(sessionId)
+  }
+
+  private getRecordingTargetResolver(): RecordingTargetResolver {
+    const state = this.recordingTargetResolverState
+    if (state.kind === 'initialized') {
+      return state.resolver
+    }
+
+    throw new Error('録音出力先の解決処理が初期化されていません')
+  }
+
+  private sendStartRecordingCommand(sessionId: string): void {
     const recordingWindow = this.getRecordingWindowForOperation('録音開始')
     if (recordingWindow == null) {
+      this.targetsBySessionId.delete(sessionId)
+      this.recordingState = { kind: 'idle' }
       this.transcriptionJobService.notifyRecordingFailure('録音機能に問題が発生しました')
       return
     }
 
-    const sessionId = randomUUID()
     const options: RecordingStartOptions = {
       sessionId,
       autoStopSeconds: WindowService.getExistingInstance().getRecordingAutoStopSeconds()
@@ -337,7 +425,12 @@ export class AudioIpcHandler {
   private isCurrentSession(sessionId: string): boolean {
     const state = this.recordingState
 
-    if (state.kind === 'starting' || state.kind === 'recording' || state.kind === 'stopping') {
+    if (
+      state.kind === 'resolving-target' ||
+      state.kind === 'starting' ||
+      state.kind === 'recording' ||
+      state.kind === 'stopping'
+    ) {
       return state.sessionId === sessionId
     }
 
@@ -360,6 +453,14 @@ export class AudioIpcHandler {
     ipcMain.removeAllListeners('recording:stopped')
     ipcMain.removeAllListeners('recording:data')
     ipcMain.removeAllListeners('recording:error')
+    this.targetsBySessionId.clear()
+    if (this.recordingState.kind === 'resolving-target') {
+      this.recordingState = {
+        kind: 'resolving-target',
+        sessionId: this.recordingState.sessionId,
+        cancelRequested: true
+      }
+    }
     this.transcriptionJobService.cleanup()
   }
 }

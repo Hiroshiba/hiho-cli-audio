@@ -5,7 +5,7 @@ import { ConfigService } from './configService'
 import { GeminiService } from './geminiService'
 import { HistoryService } from './historyService'
 import { LoggerService } from './loggerService'
-import { ProcessedAudioData, RecordingData, StatusWindowState } from './types'
+import type { ProcessedAudioData, RecordingData, RecordingTarget, StatusWindowState } from './types'
 import { WindowService } from './windowService'
 
 const COMPLETED_MESSAGE = 'クリップボードにコピーしました'
@@ -88,7 +88,7 @@ export class TranscriptionJobService {
   }
 
   /** 録音データから文字起こしジョブを開始 */
-  submitRecordingData(recordingData: RecordingData): void {
+  submitRecordingData(recordingData: RecordingData, target: RecordingTarget): void {
     const jobId = randomUUID()
     const createdAt = new Date().toISOString()
     this.activeJobIds.add(jobId)
@@ -99,7 +99,7 @@ export class TranscriptionJobService {
       dataSize: recordingData.webmData.length
     })
 
-    void this.runJob(jobId, createdAt, recordingData)
+    void this.runJob(jobId, createdAt, recordingData, target)
   }
 
   /** サービスをクリーンアップ */
@@ -124,7 +124,8 @@ export class TranscriptionJobService {
   private async runJob(
     jobId: string,
     createdAt: string,
-    recordingData: RecordingData
+    recordingData: RecordingData,
+    target: RecordingTarget
   ): Promise<void> {
     let processedAudio: ProcessedAudioData | null = null
 
@@ -144,6 +145,7 @@ export class TranscriptionJobService {
       })
 
       clipboard.writeText(transcriptionResult.text)
+      await this.sendToHerdr(target, transcriptionResult.text)
 
       this.loggerService.infoWithDetails('文字起こしジョブが完了しました', {
         jobId,
@@ -174,6 +176,19 @@ export class TranscriptionJobService {
         message: FAILED_MESSAGE,
         durationMilliseconds: FAILED_NOTIFICATION_MILLISECONDS
       })
+    }
+  }
+
+  private async sendToHerdr(target: RecordingTarget, transcript: string): Promise<void> {
+    if (target.kind !== 'herdr') {
+      return
+    }
+
+    const text = transcript.replace(/\r\n|\r|\n/g, ' ')
+    try {
+      await target.transport.sendText(target.pane, text)
+    } catch (error) {
+      this.loggerService.warnWithDetails('Herdrへの入力に失敗しました', error)
     }
   }
 

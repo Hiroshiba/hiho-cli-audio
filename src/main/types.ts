@@ -137,6 +137,11 @@ export interface HerdrTransport {
   sendText(pane: HerdrPane, text: string): Promise<void>
 }
 
+/** 録音結果の出力先 */
+export type RecordingTarget =
+  | { kind: 'clipboard' }
+  | { kind: 'herdr'; pane: HerdrPane; transport: HerdrTransport }
+
 /** 音声認識結果 */
 export interface TranscriptionResult {
   /** 認識されたテキスト */
