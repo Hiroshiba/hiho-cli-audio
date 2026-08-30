@@ -15,8 +15,19 @@ const stateClass = computed((): string => currentState.value.kind)
 
 function createDisplayText(state: StatusWindowState, nowMilliseconds: number): string {
   switch (state.kind) {
-    case 'recording':
-      return `録音中 ${formatElapsedTime(state.recordingStartedAt, nowMilliseconds)}`
+    case 'recording': {
+      const elapsedTime = formatElapsedTime(state.recordingStartedAt, nowMilliseconds)
+      if (state.target.kind === 'clipboard') {
+        return `録音中 ${elapsedTime}`
+      }
+
+      if (state.target.kind === 'herdr') {
+        return `録音中 ${elapsedTime} · Herdr ${state.target.paneId}`
+      }
+
+      const unreachableTarget: never = state.target
+      throw new Error(`未対応の録音出力先表示状態です: ${JSON.stringify(unreachableTarget)}`)
+    }
     case 'transcribing':
       return `認識中: ${state.processingJobCount}件`
     case 'completed':
@@ -91,7 +102,9 @@ onUnmounted(() => {
   <main class="status-window" :class="stateClass" aria-live="polite">
     <div class="status-pill">
       <span class="status-icon" aria-hidden="true"></span>
-      <span class="status-text">{{ displayText }}</span>
+      <span class="status-text" :title="displayText" :aria-label="displayText">{{
+        displayText
+      }}</span>
     </div>
   </main>
 </template>
@@ -223,6 +236,8 @@ onUnmounted(() => {
 }
 
 .status-text {
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   font-size: 14.5px;
   font-weight: 700;

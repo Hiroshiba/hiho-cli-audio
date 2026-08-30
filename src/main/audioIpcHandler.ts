@@ -232,11 +232,16 @@ export class AudioIpcHandler {
       return
     }
 
+    const target = this.targetsBySessionId.get(startedPayload.sessionId)
+    if (target == null) {
+      throw new Error(`録音セッションの出力先が見つかりません: ${startedPayload.sessionId}`)
+    }
+
     this.recordingState = {
       kind: 'recording',
       sessionId: startedPayload.sessionId
     }
-    this.transcriptionJobService.startRecording()
+    this.transcriptionJobService.startRecording(target)
     this.loggerService.infoWithDetails('録音開始を確定しました', startedPayload)
 
     if (state.stopAfterStart) {

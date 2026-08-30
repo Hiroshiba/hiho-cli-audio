@@ -16,7 +16,16 @@ const StatusWindowStateSchema = z.discriminatedUnion('kind', [
     .object({
       kind: z.literal('recording'),
       recordingStartedAt: z.string().min(1),
-      processingJobCount: z.number().int().nonnegative()
+      processingJobCount: z.number().int().nonnegative(),
+      target: z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('clipboard') }).strict(),
+        z
+          .object({
+            kind: z.literal('herdr'),
+            paneId: z.string().min(1)
+          })
+          .strict()
+      ])
     })
     .strict(),
   z
@@ -71,8 +80,8 @@ const api = {
       return StatusWindowStateSchema.parse(state)
     },
     onUpdate: (callback: (state: StatusWindowState) => void): (() => void) => {
-      const listener = (_event: IpcRendererEvent, state: StatusWindowState): void => {
-        callback(state)
+      const listener = (_event: IpcRendererEvent, state: unknown): void => {
+        callback(StatusWindowStateSchema.parse(state))
       }
 
       ipcRenderer.on('status:update', listener)

@@ -6,6 +6,7 @@ import { GeminiService } from './geminiService'
 import { HistoryService } from './historyService'
 import { LoggerService } from './loggerService'
 import type { ProcessedAudioData, RecordingData, RecordingTarget, StatusWindowState } from './types'
+import type { RecordingTargetSummary } from '../shared/types/status'
 import { WindowService } from './windowService'
 
 const COMPLETED_MESSAGE = 'クリップボードにコピーしました'
@@ -16,6 +17,10 @@ const FAILED_NOTIFICATION_MILLISECONDS = 5000
 type TranscriptionJobNotification =
   | { id: string; kind: 'completed'; message: string; durationMilliseconds: number }
   | { id: string; kind: 'failed'; message: string; durationMilliseconds: number }
+
+type RecordingState =
+  | { kind: 'inactive' }
+  | { kind: 'recording'; recordingStartedAt: string; target: RecordingTargetSummary }
 
 /** 文字起こしジョブ管理サービス */
 export class TranscriptionJobService {
@@ -29,7 +34,7 @@ export class TranscriptionJobService {
   private isCleaningUp = false
   private notification: TranscriptionJobNotification | null = null
   private notificationTimer: ReturnType<typeof setTimeout> | null = null
-  private recordingStartedAt: string | null = null
+  private recordingState: RecordingState = { kind: 'inactive' }
 
   private constructor(userDataDir: string) {
     this.audioProcessor = new AudioProcessor(userDataDir)
@@ -50,12 +55,16 @@ export class TranscriptionJobService {
   }
 
   /** 録音開始状態を通知 */
-  startRecording(): void {
-    if (this.recordingStartedAt != null) {
+  startRecording(target: RecordingTarget): void {
+    if (this.recordingState.kind === 'recording') {
       throw new Error('録音状態は既に開始されています')
     }
 
-    this.recordingStartedAt = new Date().toISOString()
+    this.recordingState = {
+      kind: 'recording',
+      recordingStartedAt: new Date().toISOString(),
+      target: createRecordingTargetSummary(target)
+    }
     this.clearNotificationTimer()
     this.notification = null
     this.publishStatus()
@@ -63,17 +72,17 @@ export class TranscriptionJobService {
 
   /** 録音停止状態を通知 */
   stopRecording(): void {
-    if (this.recordingStartedAt == null) {
+    if (this.recordingState.kind === 'inactive') {
       return
     }
 
-    this.recordingStartedAt = null
+    this.recordingState = { kind: 'inactive' }
     this.publishStatus()
   }
 
   /** 録音失敗状態を通知 */
   notifyRecordingFailure(message: string): void {
-    this.recordingStartedAt = null
+    this.recordingState = { kind: 'inactive' }
     this.notifyFailure(message)
   }
 
@@ -109,7 +118,7 @@ export class TranscriptionJobService {
     ipcMain.removeHandler('status:get')
     this.activeJobIds.clear()
     this.notification = null
-    this.recordingStartedAt = null
+    this.recordingState = { kind: 'inactive' }
     this.publishStatus()
   }
 
@@ -299,11 +308,12 @@ export class TranscriptionJobService {
   private createStatusWindowState(): StatusWindowState {
     const processingJobCount = this.activeJobIds.size
 
-    if (this.recordingStartedAt != null) {
+    if (this.recordingState.kind === 'recording') {
       return {
         kind: 'recording',
-        recordingStartedAt: this.recordingStartedAt,
-        processingJobCount
+        recordingStartedAt: this.recordingState.recordingStartedAt,
+        processingJobCount,
+        target: this.recordingState.target
       }
     }
 
@@ -335,4 +345,19 @@ export class TranscriptionJobService {
 
     return String(error)
   }
+}
+
+function createRecordingTargetSummary(target: RecordingTarget): RecordingTargetSummary {
+  switch (target.kind) {
+    case 'clipboard':
+      return { kind: 'clipboard' }
+    case 'herdr':
+      return { kind: 'herdr', paneId: target.pane.paneId }
+    default:
+      throw createUnreachableRecordingTargetError(target)
+  }
+}
+
+function createUnreachableRecordingTargetError(target: never): Error {
+  return new Error(`到達不能な録音出力先です: ${JSON.stringify(target)}`)
 }
