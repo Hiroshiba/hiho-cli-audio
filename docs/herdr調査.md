@@ -108,9 +108,9 @@ Herdrには現在ペインを取得する `herdr pane current` と、特定ペ�
 
 ## 現在の `hiho-cli-audio` との差分
 
-現在の実装では、グローバルホットキーを押すと `HotkeyService` から録音開始・停止だけが呼ばれます。録音開始時に外部アプリやHerdrの情報を取得する処理はまだありません。
+現在の実装では、グローバルホットキーを押すと `HotkeyService` から録音開始・停止が呼ばれ、録音開始時に前面条件を確認します。Herdr targetになった場合は現在のペインを取得して送信先を固定します。
 
-録音セッションには既に `sessionId` があり、録音データにも同じIDが載っています。一方、音声認識が完了すると、現状は無条件にElectronの `clipboard.writeText()` を呼んでいます。したがって、既存の `sessionId` に「出力先Herdrペイン」を関連付ければ、比較的小さな変更で実現できます。
+録音セッションには既に `sessionId` があり、録音データにも同じIDが載っています。文字起こし完了後はtargetに応じて処理し、clipboard targetだけが原文をクリップボードへ保存します。Herdr targetは改行を空白に変換した文字列を保存済みペインへ送信します。
 
 概念的には次の情報を録音セッションごとに持たせます。
 
@@ -157,13 +157,13 @@ iTerm2はHerdrクライアントを表示する外側の端末にすぎないた
 録音開始時は概念的に次の処理になります。
 
 ```powershell
-wsl.exe -d Ubuntu -- /home/hihok/.local/bin/herdr pane current
+wsl.exe -d <WSLディストリビューション名> -u <WSLユーザー名> -- <WSL内のHerdr実行ファイルのパス> pane current
 ```
 
 認識完了後は次です。
 
 ```powershell
-wsl.exe -d Ubuntu -- /home/hihok/.local/bin/herdr pane send-text w1:p3 "認識結果"
+wsl.exe -d <WSLディストリビューション名> -u <WSLユーザー名> -- <WSL内のHerdr実行ファイルのパス> pane send-text w1:p3 "認識結果"
 ```
 
 Microsoftの公式仕様として、Windowsプロセスから `wsl.exe` を使ってLinuxコマンドを実行でき、特定ディストリビューションも `-d` で指定できます。逆方向に、WSLからWindowsの `.exe` を起動することもできます。
@@ -182,14 +182,16 @@ WSL内のHerdr server
 
 Windows Terminal自体に対する特別な連携は不要です。
 
+`herdr` はHerdr自身の設定ではなく、hiho-cli-audioの `config.yaml` に置くトップレベル設定です。全体は任意で、Windowsの設定ファイルは `%APPDATA%\hiho-cli-audio\config.yaml` です。
+
 複数のWSLディストリビューションがある場合は、デフォルトディストリビューションに依存せず、設定で次を固定した方がよいです。
 
 ```yaml
 herdr:
   windows:
-    wslDistribution: Ubuntu
-    wslUser: hihok
-    binaryPath: /home/hihok/.local/bin/herdr
+    wslDistribution: <WSLディストリビューション名>
+    wslUser: <WSLユーザー名>
+    binaryPath: <WSL内のHerdr実行ファイルのパス>
 ```
 
 Herdrを起動しているWSLユーザーと、`wsl.exe` がコマンドを実行するユーザーが異なると、所有者限定のHerdrソケットへ接続できません。そのため、必要なら `--user` も明示します。WSLはディストリビューションとユーザーの指定を公式にサポートしています。
@@ -209,8 +211,9 @@ Herdrを起動しているWSLユーザーと、`wsl.exe` がコマンドを実�
 
 文字起こし完了
   ├─ sessionIdからHerdrTargetを取得する
-  ├─ 保存したpaneIdへsend-text
-  └─ クリップボードにも保存する
+  ├─ clipboard targetなら原文をクリップボードへ保存する
+  └─ Herdr targetなら保存したpaneIdへsend-textする
+       └─ 送信失敗時はクリップボードへフォールバックせず失敗を通知する
 ```
 
 macOSとWindowsで異なるのは、Herdrコマンドの起動方法だけです。
@@ -250,7 +253,7 @@ Herdrが最後に選択されていたペインが返る
 
 運用上、「このホットキーは基本的にHerdr上でしか押さない」のであれば、まずはこれで十分です。一般アプリでも同じ音声認識を使うなら、次のどちらかが必要になります。
 
-* iTerm2／Windows Terminalが最前面かをOS別に確認し、最前面でなければ従来どおりクリップボードだけに出す
+* iTerm2／Windows Terminalが最前面かをOS別に確認し、最前面でなければクリップボードだけに出す
 * Herdr側から音声認識を開始する
 
 ## より確実なのは「Herdr側から起動する」方式
@@ -317,7 +320,7 @@ session-Aが後で完了
 
 既に `RecordingData` に `sessionId` があるため、この紐付けは自然に追加できます。
 
-また、送信先ペインが認識中に閉じられた場合は、Herdrへの送信を失敗扱いにしつつ、現在と同様にクリップボードへ結果を残すのが妥当です。
+また、送信先ペインが認識中に閉じられた場合は、Herdrへの送信を失敗扱いにし、クリップボードへフォールバックせず、成功履歴を保存したうえで失敗を通知します。
 
 ## 改行の扱い
 
@@ -345,7 +348,7 @@ const textForPane = transcript.replace(/\r?\n/g, " ")
 | 認識中に別ペインへ移動                    | 問題なし                  |
 | 複数認識ジョブ                        | セッションごとに送信先を保存すれば対応可能 |
 
-まず実装するなら、**現在のグローバルホットキーを維持し、録音開始時にmacOSではHerdr CLIを直接、Windowsでは `wsl.exe` 経由で `herdr pane current` を呼ぶ方式**が最小です。より厳密に「Herdr上で押したときだけ、そのペインへ送る」ことが必要になったら、Herdrのカスタムキーバインドからペイン情報を渡す方式へ移行できます。
+現在の実装は、グローバルホットキーを維持し、録音開始時に前面ウィンドウを判定したうえで、macOSではHerdr CLIを直接、Windowsでは `wsl.exe` 経由で `herdr pane current` を呼ぶ方式です。
 
 
 
@@ -399,8 +402,9 @@ Herdrの現在     clipboard
           ▼
       文字起こし
           │
-          ├─ クリップボードへコピー
-          └─ Herdr targetなら保存済みペインへ送信
+          ├─ clipboard targetなら原文をクリップボードへ保存
+          └─ Herdr targetなら改行を空白にして保存済みペインへ送信
+               └─ 送信失敗時はクリップボードを変更せず失敗を通知
 ```
 
 重要なのは、**送信先の判定は録音開始時だけ行う**ことです。
@@ -411,7 +415,7 @@ Herdrの現在     clipboard
 
 ## ブラウザ上で押した場合
 
-ブラウザが前面なら、従来どおり次の挙動にします。
+ブラウザが前面なら、次の挙動にします。
 
 ```text
 グローバルショートカット
@@ -456,14 +460,16 @@ Herdrの `send-text` は対象ペインのPTYへ文字列を送ります。Enter
 
 ここだけOS別実装になります。
 
-単に「iTerm2またはWindows Terminalが前面」だけで判定すると、同じ端末で通常のシェルを開いている場合までHerdr扱いになってしまいます。そこで、Herdrの外側ウィンドウタイトルに識別用の固定文字列を入れるのが扱いやすいです。
+単に「iTerm2またはWindows Terminalが前面」だけで判定すると、同じ端末で通常のシェルを開いている場合までHerdr扱いになってしまいます。そこで、端末タイトルに識別用の固定文字列を入れる方法があります。
 
 ```toml
 [ui]
 window_title = "[HERDR] {workspace} — {tab}"
 ```
 
-Herdrのタイトルテンプレートは固定文字列と `{hostname}`、`{workspace}`、`{tab}`、`{pane}`、`{terminal_title}` を組み合わせられます。
+Windows Terminalでは対象タブを右クリックし、タブ名の変更で `[HERDR] Herdr` などにします。この手順は実機で確認済みです。
+
+Herdr側の `[ui] window_title` は自動化したい場合の候補です。設定形式はバージョンに依存し、Herdr 0.8.0では未確認です。インストール済みのHerdrで `herdr --help` と設定仕様を確認してください。確定した設定手順ではありません。
 
 hiho-cli-audio側では、録音開始時に次を確認します。
 
@@ -477,7 +483,7 @@ Windows:
   かつ前面ウィンドウタイトルに [HERDR]
 ```
 
-判定結果が不明、タイトルが取得できない、Herdr CLIがタイムアウトした、ペイン取得が失敗した場合は、**必ずclipboard targetへフォールバック**します。前回のペインを再利用してはいけません。古いペインへ誤送信する方が危険だからです。
+判定結果が不明、タイトルが取得できない、Herdr CLIがタイムアウトした、ペイン取得が失敗した場合は、clipboard targetとして処理します。前回のペインを再利用してはいけません。Herdr送信に失敗した場合はこのフォールバックを使わず、クリップボードを変更せず、別のペインにも送らず、成功履歴を保存したうえで失敗を通知します。
 
 この判定部分は `ForegroundContextService` として隔離します。
 
@@ -642,9 +648,9 @@ kind: 'failed'
 
 が存在し、録音開始時には `recordingStartedAt` を設定して状態ウィンドウを表示しています。
 
-したがって、Herdr対応を追加しても、グローバルショートカットと同じ `AudioIpcHandler`／`TranscriptionJobService` を通せば「録音中」はそのまま表示できます。
+したがって、Herdr対応もグローバルショートカットと同じ `AudioIpcHandler`／`TranscriptionJobService` を通すため、「録音中」はそのまま表示できます。
 
-送信先を表示したければ、状態型を次のように拡張できます。
+実装では状態型を次のように拡張して送信先を表示します。
 
 ```ts
 type RecordingTargetSummary =
@@ -689,31 +695,31 @@ function normalizeForInsertion(text: string): string {
 
 履歴には元の文字起こしを保存し、実際の出力だけ正規化するのがよいです。
 
-処理順は次を推奨します。
+処理順は次のとおりです。
 
 ```text
 1. 文字起こし成功
-2. 正規化
-3. クリップボードへコピー
-4. targetがHerdrなら保存済みペインへ送信
-5. 成否を状態ウィンドウへ表示
+2. targetに応じて出力
+   ├─ clipboard targetなら原文をクリップボードへ保存
+   └─ Herdr targetなら改行を空白にして保存済みペインへ送信
+3. 元の文字起こしを成功履歴へ保存
+4. 出力結果に応じて状態ウィンドウへ表示
 ```
 
-現在も文字起こし成功時にElectronのクリップボードへ書き込んでいます。
+clipboard targetだけが文字起こし原文をElectronのクリップボードへ書き込みます。Herdr targetの送信成功時はクリップボードを変更しません。
 
-Herdrへの送信に失敗してもクリップボードには残るので、結果を失いません。
+Herdrへの送信に失敗した場合は、クリップボードへフォールバックせず、別のペインにも送らず、元の文字起こしを成功履歴へ保存します。その後、状態ウィンドウに失敗を表示します。
 
 成功表示は分けます。
 
 ```text
-Herdrに入力しました
+Herdrへ入力しました
 ```
 
 失敗時は、
 
 ```text
 Herdrへの入力に失敗しました
-クリップボードにコピーしました
 ```
 
 とします。
@@ -847,7 +853,7 @@ macOS側ラッパーはアプリバンドル内の実行ファイルを起動し
 5. `sessionId` ごとに送信先を固定する。
 6. 録音停止時には送信先を再判定しない。
 7. 文字起こし結果は改行を空白化する。
-8. クリップボードへ必ず保存し、Herdr targetなら追加で `pane send-text` する。
+8. clipboard targetだけ原文をクリップボードへ保存し、Herdr targetは改行を空白にして保存済みペインへ送信する。Herdr送信成功時はクリップボードを変更せず、送信失敗時はフォールバックせずに成功履歴と失敗通知へ進む。
 9. 専用のターミナルペイン、常駐CLI、別の音声認識プロセスは作らない。
 
 この構成なら、利用時のキーは完全に共通で、録音表示も現在の実装を再利用でき、二重録音の入口自体をなくせます。Herdr側からのpush方式は、複数の名前付きHerdrセッションを自動識別する必要が出た段階で追加するのが適切です。
