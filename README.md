@@ -84,6 +84,50 @@ windows:
 `transcription.mode` は発話をそのまま残す `verbatim` または読みやすく整える `smart` を指定します。
 `transcription.customVocabulary` には認識時に優先する固有名詞や専門用語を最大1000件指定できます。
 
+## Herdrへの入力
+
+`herdr` 設定は任意です。設定しない場合は、認識結果をクリップボードだけへ保存します。
+
+macOS では次のように Herdr 実行ファイルのパスを指定します。
+
+```yaml
+herdr:
+  macos:
+    binaryPath: '/absolute/path/to/herdr'
+```
+
+iTerm2 が前面にあり、ウィンドウタイトルに `[HERDR]` が含まれる場合だけ Herdr への入力対象になります。macOS が自動化やアクセシビリティの許可を求めた場合は、システム設定のプライバシーとセキュリティで hiho-cli-audio に System Events の操作を許可してください。
+
+Windows では WSL の値と WSL 内の Herdr 実行ファイルのパスを指定します。
+
+```yaml
+herdr:
+  windows:
+    wslDistribution: '<WSLディストリビューション名>'
+    wslUser: '<WSLユーザー名>'
+    binaryPath: '<WSL内のHerdr実行ファイルのパス>'
+```
+
+Windows Terminal が前面にあり、ウィンドウタイトルに `[HERDR]` が含まれる場合だけ Herdr への入力対象になります。macOS と Windows のどちらも、タイトルにマーカーがない場合はクリップボードへだけ出力します。
+
+Herdr 側でも端末タイトルに `[HERDR]` を含めてください。次の設定例は Herdr のバージョンに依存します。
+
+```toml
+[ui]
+window_title = "[HERDR] {workspace} — {tab}"
+```
+
+Herdr 0.8.0 での設定項目は未確認です。インストール済みの Herdr で `herdr --help` と設定仕様を確認してください。タイトル設定を利用できない場合は、誤送信を防ぐため Herdr への自動入力を行わず、クリップボードへ出力します。
+
+録音開始時に現在の Herdr pane を取得して送信先を固定します。録音中に別の pane や別のアプリケーションへ移動しても、開始時の pane へ送信します。認識結果は先にクリップボードへ保存し、Herdr へは改行を空白に置き換えた文字列だけを送り、Enter は送りません。前面判定、pane 取得、Herdr 送信に失敗した場合も、認識結果はクリップボードに残ります。
+
+動作確認では、設定した環境で次を確認してください。
+
+- macOS は `<Herdr実行ファイルのパス> pane current` が JSON を返すこと
+- Windows は `wsl.exe -d "<WSLディストリビューション名>" -u "<WSLユーザー名>" -- "<WSL内のHerdr実行ファイルのパス>" pane current` が動くこと
+- Herdr の端末タイトルに `[HERDR]` が表示されること
+- 設定後にアプリケーションを再起動すること
+
 ## 開発
 
 ```bash
