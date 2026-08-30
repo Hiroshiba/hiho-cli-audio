@@ -125,59 +125,42 @@ onUnmounted(() => {
   height: 100%;
   align-items: center;
   justify-content: center;
-  padding: 8px 12px;
   background: transparent;
   user-select: none;
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
 }
 
 .status-pill {
   display: flex;
   box-sizing: border-box;
   width: 100%;
-  min-height: 42px;
+  height: 100%;
   align-items: center;
-  gap: 10px;
-  padding: 12px 22px;
+  gap: 8px;
+  padding: 0 14px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.72);
-  box-shadow:
-    0 10px 30px -8px rgba(60, 50, 30, 0.28),
-    0 1px 2px rgba(60, 50, 30, 0.08),
-    inset 0 0 0 1.5px rgba(163, 154, 140, 0.28);
-  backdrop-filter: blur(6px);
+  -webkit-app-region: drag;
 }
 
 .status-window.recording .status-pill {
   background: #fdedea;
   color: #b3392a;
-  box-shadow:
-    0 10px 30px -8px rgba(60, 50, 30, 0.28),
-    0 1px 2px rgba(60, 50, 30, 0.08);
 }
 
 .status-window.transcribing .status-pill {
   background: #eaf1fe;
   color: #3363a8;
-  box-shadow:
-    0 10px 30px -8px rgba(60, 50, 30, 0.28),
-    0 1px 2px rgba(60, 50, 30, 0.08);
 }
 
 .status-window.completed .status-pill {
   background: #e9f7ef;
   color: #1f7a4d;
-  box-shadow:
-    0 10px 30px -8px rgba(60, 50, 30, 0.28),
-    0 1px 2px rgba(60, 50, 30, 0.08);
 }
 
 .status-window.failed .status-pill {
   background: #fdecea;
   color: #b3392a;
-  box-shadow:
-    0 10px 30px -8px rgba(60, 50, 30, 0.28),
-    0 1px 2px rgba(60, 50, 30, 0.08);
 }
 
 .status-icon {

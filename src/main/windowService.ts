@@ -8,8 +8,8 @@ import { APP_ICON_PATH } from './appIcon'
 
 const STATUS_WINDOW_STATE_NAME = 'status'
 const HISTORY_WINDOW_STATE_NAME = 'history'
-const STATUS_WINDOW_WIDTH = 360
-const STATUS_WINDOW_HEIGHT = 72
+const STATUS_WINDOW_WIDTH = 296
+const STATUS_WINDOW_HEIGHT = 44
 const STATUS_WINDOW_MARGIN_X = 24
 const STATUS_WINDOW_MARGIN_Y = 72
 const HISTORY_WINDOW_NARROW_WIDTH = 320
@@ -131,6 +131,7 @@ export class WindowService {
       show: false,
       frame: false,
       transparent: true,
+      hasShadow: false,
       resizable: false,
       minimizable: false,
       maximizable: false,
@@ -303,10 +304,19 @@ export class WindowService {
       .loadWindowBounds(windowName)
       .then((result) => {
         if (result.found) {
-          window.setBounds(result.bounds)
+          const bounds =
+            windowName === STATUS_WINDOW_STATE_NAME
+              ? {
+                  x: result.bounds.x + result.bounds.width - STATUS_WINDOW_WIDTH,
+                  y: result.bounds.y,
+                  width: STATUS_WINDOW_WIDTH,
+                  height: STATUS_WINDOW_HEIGHT
+                }
+              : result.bounds
+          window.setBounds(bounds)
           this.loggerService.infoWithDetails('ウィンドウ位置を復元しました', {
             windowName,
-            bounds: result.bounds
+            bounds
           })
         }
       })
