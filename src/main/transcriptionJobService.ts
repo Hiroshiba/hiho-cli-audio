@@ -197,7 +197,7 @@ export class TranscriptionJobService {
       case 'herdr': {
         const text = transcript.replace(/\r\n|\r|\n/g, ' ')
         try {
-          await target.transport.sendText(target.pane, text)
+          await target.transport.run(target.pane, text)
         } catch (error) {
           this.loggerService.warnWithDetails(
             'Herdrへの入力に失敗しました。文字起こし結果を成功履歴へ保存します',

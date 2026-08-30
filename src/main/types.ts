@@ -133,8 +133,8 @@ export interface HerdrPane {
 export interface HerdrTransport {
   /** 現在のHerdrペインを取得 */
   getCurrentPane(): Promise<HerdrPane>
-  /** 指定したHerdrペインへ文字列を送信 */
-  sendText(pane: HerdrPane, text: string): Promise<void>
+  /** 指定したHerdrペインで文字列を実行 */
+  run(pane: HerdrPane, text: string): Promise<void>
 }
 
 /** 録音結果の出力先 */

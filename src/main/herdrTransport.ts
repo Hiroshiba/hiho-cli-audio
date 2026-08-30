@@ -35,9 +35,9 @@ export class LocalHerdrTransport implements HerdrTransport {
     return parseCurrentPane(stdout)
   }
 
-  /** 指定したHerdrペインへ文字列を送信 */
-  async sendText(pane: HerdrPane, text: string): Promise<void> {
-    await execFileText(this.config.binaryPath, ['pane', 'send-text', pane.paneId, text])
+  /** 指定したHerdrペインで文字列を実行 */
+  async run(pane: HerdrPane, text: string): Promise<void> {
+    await execFileText(this.config.binaryPath, ['pane', 'run', pane.paneId, text])
   }
 }
 
@@ -55,9 +55,9 @@ export class WslHerdrTransport implements HerdrTransport {
     return parseCurrentPane(stdout)
   }
 
-  /** 指定したHerdrペインへ文字列を送信 */
-  async sendText(pane: HerdrPane, text: string): Promise<void> {
-    await execFileText('wsl.exe', this.createArguments(['pane', 'send-text', pane.paneId, text]))
+  /** 指定したHerdrペインで文字列を実行 */
+  async run(pane: HerdrPane, text: string): Promise<void> {
+    await execFileText('wsl.exe', this.createArguments(['pane', 'run', pane.paneId, text]))
   }
 
   private createArguments(commandArguments: readonly string[]): string[] {
