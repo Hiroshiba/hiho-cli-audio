@@ -9,14 +9,18 @@ import type { ProcessedAudioData, RecordingData, RecordingTarget, StatusWindowSt
 import type { RecordingTargetSummary } from '../shared/types/status'
 import { WindowService } from './windowService'
 
-const COMPLETED_MESSAGE = 'クリップボードにコピーしました'
-const FAILED_MESSAGE = '文字起こしに失敗しました'
+const CLIPBOARD_COMPLETED_MESSAGE = 'クリップボードにコピーしました'
+const HERDR_COMPLETED_MESSAGE = 'Herdrへ入力しました'
+const TRANSCRIPTION_FAILED_MESSAGE = '文字起こしに失敗しました'
+const HERDR_FAILED_MESSAGE = 'Herdrへの入力に失敗しました'
 const COMPLETED_NOTIFICATION_MILLISECONDS = 3000
 const FAILED_NOTIFICATION_MILLISECONDS = 5000
 
 type TranscriptionJobNotification =
   | { id: string; kind: 'completed'; message: string; durationMilliseconds: number }
   | { id: string; kind: 'failed'; message: string; durationMilliseconds: number }
+
+type TranscriptionOutput = { kind: 'clipboard' } | { kind: 'herdr' } | { kind: 'herdr-failed' }
 
 type RecordingState =
   | { kind: 'inactive' }
@@ -153,8 +157,7 @@ export class TranscriptionJobService {
         customVocabulary: config.transcription.customVocabulary
       })
 
-      clipboard.writeText(transcriptionResult.text)
-      await this.sendToHerdr(target, transcriptionResult.text)
+      const output = await this.outputTranscription(target, transcriptionResult.text)
 
       this.loggerService.infoWithDetails('文字起こしジョブが完了しました', {
         jobId,
@@ -165,12 +168,7 @@ export class TranscriptionJobService {
 
       await this.recordCompletedHistoryItem(processedAudio, createdAt, transcriptionResult.text)
 
-      this.completeJob(jobId, {
-        id: randomUUID(),
-        kind: 'completed',
-        message: COMPLETED_MESSAGE,
-        durationMilliseconds: COMPLETED_NOTIFICATION_MILLISECONDS
-      })
+      this.completeJob(jobId, createTranscriptionNotification(output))
     } catch (error) {
       this.loggerService.error('文字起こしジョブに失敗しました', {
         jobId,
@@ -182,22 +180,35 @@ export class TranscriptionJobService {
       this.completeJob(jobId, {
         id: randomUUID(),
         kind: 'failed',
-        message: FAILED_MESSAGE,
+        message: TRANSCRIPTION_FAILED_MESSAGE,
         durationMilliseconds: FAILED_NOTIFICATION_MILLISECONDS
       })
     }
   }
 
-  private async sendToHerdr(target: RecordingTarget, transcript: string): Promise<void> {
-    if (target.kind !== 'herdr') {
-      return
-    }
-
-    const text = transcript.replace(/\r\n|\r|\n/g, ' ')
-    try {
-      await target.transport.sendText(target.pane, text)
-    } catch (error) {
-      this.loggerService.warnWithDetails('Herdrへの入力に失敗しました', error)
+  private async outputTranscription(
+    target: RecordingTarget,
+    transcript: string
+  ): Promise<TranscriptionOutput> {
+    switch (target.kind) {
+      case 'clipboard':
+        clipboard.writeText(transcript)
+        return { kind: 'clipboard' }
+      case 'herdr': {
+        const text = transcript.replace(/\r\n|\r|\n/g, ' ')
+        try {
+          await target.transport.sendText(target.pane, text)
+        } catch (error) {
+          this.loggerService.warnWithDetails(
+            'Herdrへの入力に失敗しました。文字起こし結果を成功履歴へ保存します',
+            error
+          )
+          return { kind: 'herdr-failed' }
+        }
+        return { kind: 'herdr' }
+      }
+      default:
+        throw createUnreachableRecordingTargetError(target)
     }
   }
 
@@ -360,4 +371,38 @@ function createRecordingTargetSummary(target: RecordingTarget): RecordingTargetS
 
 function createUnreachableRecordingTargetError(target: never): Error {
   return new Error(`到達不能な録音出力先です: ${JSON.stringify(target)}`)
+}
+
+function createTranscriptionNotification(
+  output: TranscriptionOutput
+): TranscriptionJobNotification {
+  switch (output.kind) {
+    case 'clipboard':
+      return {
+        id: randomUUID(),
+        kind: 'completed',
+        message: CLIPBOARD_COMPLETED_MESSAGE,
+        durationMilliseconds: COMPLETED_NOTIFICATION_MILLISECONDS
+      }
+    case 'herdr':
+      return {
+        id: randomUUID(),
+        kind: 'completed',
+        message: HERDR_COMPLETED_MESSAGE,
+        durationMilliseconds: COMPLETED_NOTIFICATION_MILLISECONDS
+      }
+    case 'herdr-failed':
+      return {
+        id: randomUUID(),
+        kind: 'failed',
+        message: HERDR_FAILED_MESSAGE,
+        durationMilliseconds: FAILED_NOTIFICATION_MILLISECONDS
+      }
+    default:
+      throw createUnreachableTranscriptionOutputError(output)
+  }
+}
+
+function createUnreachableTranscriptionOutputError(output: never): Error {
+  return new Error(`到達不能な文字起こし出力です: ${JSON.stringify(output)}`)
 }
