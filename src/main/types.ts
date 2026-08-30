@@ -81,6 +81,30 @@ export interface WindowsConfig {
   history: HistoryWindowConfig
 }
 
+/** macOS版Herdr設定 */
+export interface HerdrMacosConfig {
+  /** Herdr実行ファイルのパス */
+  binaryPath: string
+}
+
+/** Windows版Herdr設定 */
+export interface HerdrWindowsConfig {
+  /** WSLディストリビューション名 */
+  wslDistribution: string
+  /** WSLユーザー名 */
+  wslUser: string
+  /** WSL内のHerdr実行ファイルのパス */
+  binaryPath: string
+}
+
+/** Herdr設定 */
+export interface HerdrConfig {
+  /** macOS版Herdr設定 */
+  macos?: HerdrMacosConfig
+  /** Windows版Herdr設定 */
+  windows?: HerdrWindowsConfig
+}
+
 /** アプリケーション設定 */
 export interface Config {
   /** アプリケーション設定 */
@@ -95,6 +119,22 @@ export interface Config {
   history: HistoryConfig
   /** ウィンドウ設定 */
   windows: WindowsConfig
+  /** Herdr設定 */
+  herdr?: HerdrConfig
+}
+
+/** Herdrのペイン */
+export interface HerdrPane {
+  /** Herdrが管理するペインID */
+  paneId: string
+}
+
+/** Herdr CLIの通信処理 */
+export interface HerdrTransport {
+  /** 現在のHerdrペインを取得 */
+  getCurrentPane(): Promise<HerdrPane>
+  /** 指定したHerdrペインへ文字列を送信 */
+  sendText(pane: HerdrPane, text: string): Promise<void>
 }
 
 /** 音声認識結果 */

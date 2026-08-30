@@ -175,6 +175,33 @@ export const WindowsConfigSchema = z
   })
   .strict()
 
+/** macOS版Herdr設定のスキーマ */
+export const HerdrMacosConfigSchema = z
+  .object({
+    binaryPath: nonEmptyString('herdr.macos.binaryPath を設定してください')
+  })
+  .strict()
+
+/** Windows版Herdr設定のスキーマ */
+export const HerdrWindowsConfigSchema = z
+  .object({
+    wslDistribution: nonEmptyString('herdr.windows.wslDistribution を設定してください'),
+    wslUser: nonEmptyString('herdr.windows.wslUser を設定してください'),
+    binaryPath: nonEmptyString('herdr.windows.binaryPath を設定してください')
+  })
+  .strict()
+
+/** Herdr設定のスキーマ */
+export const HerdrConfigSchema = z
+  .object({
+    macos: HerdrMacosConfigSchema.optional(),
+    windows: HerdrWindowsConfigSchema.optional()
+  })
+  .strict()
+  .refine((config) => config.macos != null || config.windows != null, {
+    message: 'herdr.macos または herdr.windows を設定してください'
+  })
+
 /** アプリケーション設定のスキーマ */
 export const ConfigSchema = z
   .object({
@@ -183,7 +210,8 @@ export const ConfigSchema = z
     recording: RecordingConfigSchema,
     transcription: TranscriptionConfigSchema,
     history: HistoryConfigSchema,
-    windows: WindowsConfigSchema
+    windows: WindowsConfigSchema,
+    herdr: HerdrConfigSchema.optional()
   })
   .strict()
 
