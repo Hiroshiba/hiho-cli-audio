@@ -13,6 +13,11 @@ const displayText = computed((): string =>
 
 const stateClass = computed((): string => currentState.value.kind)
 
+const canCancel = computed(
+  (): boolean =>
+    currentState.value.kind === 'recording' || currentState.value.kind === 'transcribing'
+)
+
 function createDisplayText(state: StatusWindowState, nowMilliseconds: number): string {
   switch (state.kind) {
     case 'recording': {
@@ -75,6 +80,10 @@ function handleStatusUpdate(state: StatusWindowState): void {
   updateCurrentTime()
 }
 
+function handleCancel(): void {
+  window.api.status.cancel()
+}
+
 async function loadCurrentStatus(): Promise<void> {
   handleStatusUpdate(await window.api.status.getCurrent())
 }
@@ -105,6 +114,15 @@ onUnmounted(() => {
       <span class="status-text" :title="displayText" :aria-label="displayText">{{
         displayText
       }}</span>
+      <button
+        v-if="canCancel"
+        type="button"
+        class="status-cancel-button"
+        aria-label="音声認識をキャンセル"
+        @click="handleCancel"
+      >
+        ×
+      </button>
     </div>
   </main>
 </template>
@@ -245,6 +263,32 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+.status-cancel-button {
+  display: flex;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  color: inherit;
+  font: inherit;
+  font-size: 21px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.status-cancel-button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 
 @keyframes spin {
