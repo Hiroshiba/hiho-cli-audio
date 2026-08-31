@@ -1,0 +1,110 @@
+name: Edge Release
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: edge-release
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows
+            build_args: --win
+            artifact_name: hiho-cli-audio-windows
+            artifact_path: |
+              dist/*.exe
+          - os: macos-latest
+            label: macOS
+            build_args: --mac
+            artifact_name: hiho-cli-audio-macos
+            artifact_path: |
+              dist/*.dmg
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: false
+
+    steps:
+      - name: <Setup> リポジトリのチェックアウト
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: <Setup> pnpmの設定
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+
+      - name: <Setup> Node.jsとpnpmキャッシュの設定
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: '.node-version'
+          cache: 'pnpm'
+
+      - name: <Setup> 依存関係のインストール
+        run: pnpm install
+
+      - name: <Setup> package.jsonのバージョン更新
+        run: pnpm version "0.0.0-edge" --no-git-tag-version
+
+      - name: <Check> TypeScript型チェック
+        run: pnpm typecheck
+
+      - name: <Check> ESLintの実行
+        run: pnpm lint
+
+      - name: <Build> Electronアプリケーションのビルド
+        run: pnpm run build
+
+      - name: <Build> アプリケーションパッケージの作成
+        run: pnpm exec electron-builder ${{ matrix.build_args }} --publish never
+
+      - name: <Artifact> 成果物のアップロード
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: <Artifact> 成果物の取得
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: <Release> GitHub Releaseへのデプロイ
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: edge
+          RELEASE_TITLE: edge
+          RELEASE_NOTES: mainブランチの最新コミットを反映したエッジ版です。
+        run: |
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" --title "${RELEASE_TITLE}" --notes "${RELEASE_NOTES}" --prerelease --latest=false --target "${GITHUB_SHA}"
+            gh release upload "${RELEASE_TAG}" release-assets/* --clobber
+            gh api --method PATCH "repos/${GH_REPO}/git/refs/tags/${RELEASE_TAG}" -f sha="${GITHUB_SHA}" -F force=true
+          else
+            gh release create "${RELEASE_TAG}" release-assets/* --title "${RELEASE_TITLE}" --notes "${RELEASE_NOTES}" --prerelease --latest=false --target "${GITHUB_SHA}"
+          fi
