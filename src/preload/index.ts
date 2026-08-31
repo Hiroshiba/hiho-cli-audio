@@ -77,6 +77,9 @@ const api = {
     }
   },
   status: {
+    cancel: (): void => {
+      ipcRenderer.send('status:cancel')
+    },
     getCurrent: async (): Promise<StatusWindowState> => {
       const state: unknown = await ipcRenderer.invoke('status:get')
       return StatusWindowStateSchema.parse(state)

@@ -47,7 +47,7 @@ const ForegroundWindowSchema = z
 /** Herdr前面判定の共通インターフェース */
 export interface HerdrForegroundDetector {
   /** 前面ウィンドウがHerdr用ターミナルか判定 */
-  isHerdrForeground(): Promise<boolean>
+  isHerdrForeground(signal: AbortSignal): Promise<boolean>
 }
 
 function parseForegroundWindow(stdout: string): { processName: string; windowTitle: string } {
@@ -57,13 +57,12 @@ function parseForegroundWindow(stdout: string): { processName: string; windowTit
 /** macOSの前面ウィンドウを判定 */
 export class MacosHerdrForegroundDetector implements HerdrForegroundDetector {
   /** 前面ウィンドウがHerdr用iTerm2か判定 */
-  async isHerdrForeground(): Promise<boolean> {
-    const stdout = await execFileText('/usr/bin/osascript', [
-      '-l',
-      'JavaScript',
-      '-e',
-      MACOS_FOREGROUND_SCRIPT
-    ])
+  async isHerdrForeground(signal: AbortSignal): Promise<boolean> {
+    const stdout = await execFileText(
+      '/usr/bin/osascript',
+      ['-l', 'JavaScript', '-e', MACOS_FOREGROUND_SCRIPT],
+      signal
+    )
     const foregroundWindow = parseForegroundWindow(stdout)
     return (
       foregroundWindow.processName === 'iTerm2' &&
@@ -75,13 +74,12 @@ export class MacosHerdrForegroundDetector implements HerdrForegroundDetector {
 /** Windowsの前面ウィンドウを判定 */
 export class WindowsHerdrForegroundDetector implements HerdrForegroundDetector {
   /** 前面ウィンドウがHerdr用Windows Terminalか判定 */
-  async isHerdrForeground(): Promise<boolean> {
-    const stdout = await execFileText('powershell.exe', [
-      '-NoProfile',
-      '-NonInteractive',
-      '-Command',
-      WINDOWS_FOREGROUND_SCRIPT
-    ])
+  async isHerdrForeground(signal: AbortSignal): Promise<boolean> {
+    const stdout = await execFileText(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', WINDOWS_FOREGROUND_SCRIPT],
+      signal
+    )
     const foregroundWindow = parseForegroundWindow(stdout)
     const isWindowsTerminal =
       foregroundWindow.processName === 'WindowsTerminal' ||

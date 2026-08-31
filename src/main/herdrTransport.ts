@@ -30,14 +30,14 @@ export class LocalHerdrTransport implements HerdrTransport {
   }
 
   /** 現在のHerdrペインを取得 */
-  async getCurrentPane(): Promise<HerdrPane> {
-    const stdout = await execFileText(this.config.binaryPath, ['pane', 'current'])
+  async getCurrentPane(signal: AbortSignal): Promise<HerdrPane> {
+    const stdout = await execFileText(this.config.binaryPath, ['pane', 'current'], signal)
     return parseCurrentPane(stdout)
   }
 
   /** 指定したHerdrペインで文字列を実行 */
-  async run(pane: HerdrPane, text: string): Promise<void> {
-    await execFileText(this.config.binaryPath, ['pane', 'run', pane.paneId, text])
+  async run(pane: HerdrPane, text: string, signal: AbortSignal): Promise<void> {
+    await execFileText(this.config.binaryPath, ['pane', 'run', pane.paneId, text], signal)
   }
 }
 
@@ -50,14 +50,14 @@ export class WslHerdrTransport implements HerdrTransport {
   }
 
   /** 現在のHerdrペインを取得 */
-  async getCurrentPane(): Promise<HerdrPane> {
-    const stdout = await execFileText('wsl.exe', this.createArguments(['pane', 'current']))
+  async getCurrentPane(signal: AbortSignal): Promise<HerdrPane> {
+    const stdout = await execFileText('wsl.exe', this.createArguments(['pane', 'current']), signal)
     return parseCurrentPane(stdout)
   }
 
   /** 指定したHerdrペインで文字列を実行 */
-  async run(pane: HerdrPane, text: string): Promise<void> {
-    await execFileText('wsl.exe', this.createArguments(['pane', 'run', pane.paneId, text]))
+  async run(pane: HerdrPane, text: string, signal: AbortSignal): Promise<void> {
+    await execFileText('wsl.exe', this.createArguments(['pane', 'run', pane.paneId, text]), signal)
   }
 
   private createArguments(commandArguments: readonly string[]): string[] {

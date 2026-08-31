@@ -26,10 +26,15 @@ type RecordingState =
   | { kind: 'inactive' }
   | { kind: 'recording'; recordingStartedAt: string; target: RecordingTargetSummary }
 
+type TranscriptionJobState = {
+  controller: AbortController
+  cancelled: boolean
+}
+
 /** 文字起こしジョブ管理サービス */
 export class TranscriptionJobService {
   private static instance: TranscriptionJobService | null = null
-  private readonly activeJobIds = new Set<string>()
+  private readonly jobsById = new Map<string, TranscriptionJobState>()
   private readonly audioProcessor: AudioProcessor
   private readonly configService: ConfigService
   private readonly geminiService: GeminiService
@@ -102,9 +107,17 @@ export class TranscriptionJobService {
 
   /** 録音データから文字起こしジョブを開始 */
   submitRecordingData(recordingData: RecordingData, target: RecordingTarget): void {
+    if (this.isCleaningUp) {
+      this.loggerService.info('終了処理中の録音データを破棄しました')
+      return
+    }
+
     const jobId = randomUUID()
     const createdAt = new Date().toISOString()
-    this.activeJobIds.add(jobId)
+    this.jobsById.set(jobId, {
+      controller: new AbortController(),
+      cancelled: false
+    })
     this.publishStatus()
 
     this.loggerService.infoWithDetails('文字起こしジョブを開始しました', {
@@ -115,12 +128,29 @@ export class TranscriptionJobService {
     void this.runJob(jobId, createdAt, recordingData, target)
   }
 
+  /** 録音と実行中の文字起こしをキャンセル */
+  cancel(): void {
+    for (const job of this.jobsById.values()) {
+      job.cancelled = true
+      job.controller.abort()
+    }
+
+    this.clearNotificationTimer()
+    this.notification = null
+    this.recordingState = { kind: 'inactive' }
+    this.publishStatus()
+  }
+
   /** サービスをクリーンアップ */
   cleanup(): void {
     this.isCleaningUp = true
+    for (const job of this.jobsById.values()) {
+      job.cancelled = true
+      job.controller.abort()
+    }
+
     this.clearNotificationTimer()
     ipcMain.removeHandler('status:get')
-    this.activeJobIds.clear()
     this.notification = null
     this.recordingState = { kind: 'inactive' }
     this.publishStatus()
@@ -141,9 +171,19 @@ export class TranscriptionJobService {
     target: RecordingTarget
   ): Promise<void> {
     let processedAudio: ProcessedAudioData | null = null
+    const job = this.jobsById.get(jobId)
+    if (job == null) {
+      throw new Error(`文字起こしジョブが見つかりません: ${jobId}`)
+    }
 
     try {
-      const processResult = await this.audioProcessor.processAudioData(recordingData, jobId)
+      this.throwIfCancelled(jobId)
+      const processResult = await this.audioProcessor.processAudioData(
+        recordingData,
+        jobId,
+        job.controller.signal
+      )
+      this.throwIfCancelled(jobId)
       if (!processResult.success) {
         throw new Error(processResult.error)
       }
@@ -151,13 +191,23 @@ export class TranscriptionJobService {
       processedAudio = processResult.data
       const config = this.configService.getConfig()
       const geminiClient = this.geminiService.getClient()
-      const transcriptionResult = await geminiClient.transcribe(processedAudio.wavFilePath, {
-        language: config.transcription.language,
-        mode: config.transcription.mode,
-        customVocabulary: config.transcription.customVocabulary
-      })
+      const transcriptionResult = await geminiClient.transcribe(
+        processedAudio.wavFilePath,
+        {
+          language: config.transcription.language,
+          mode: config.transcription.mode,
+          customVocabulary: config.transcription.customVocabulary
+        },
+        job.controller.signal
+      )
+      this.throwIfCancelled(jobId)
 
-      const output = await this.outputTranscription(target, transcriptionResult.text)
+      const output = await this.outputTranscription(
+        target,
+        transcriptionResult.text,
+        job.controller.signal
+      )
+      this.throwIfCancelled(jobId)
 
       this.loggerService.infoWithDetails('文字起こしジョブが完了しました', {
         jobId,
@@ -166,16 +216,41 @@ export class TranscriptionJobService {
         textLength: transcriptionResult.text.length
       })
 
-      await this.recordCompletedHistoryItem(processedAudio, createdAt, transcriptionResult.text)
+      await this.recordCompletedHistoryItem(
+        processedAudio,
+        createdAt,
+        transcriptionResult.text,
+        job.controller.signal
+      )
+      this.throwIfCancelled(jobId)
 
       this.completeJob(jobId, createTranscriptionNotification(output))
     } catch (error) {
+      if (this.isCancelled(jobId)) {
+        this.loggerService.infoWithDetails('キャンセルされた文字起こしジョブを終了しました', {
+          jobId,
+          error: this.formatError(error)
+        })
+        return
+      }
+
       this.loggerService.error('文字起こしジョブに失敗しました', {
         jobId,
         error: this.formatError(error)
       })
 
-      await this.recordFailedHistoryItem(jobId, createdAt, processedAudio)
+      try {
+        await this.recordFailedHistoryItem(jobId, createdAt, processedAudio, job.controller.signal)
+      } catch (historyError) {
+        if (this.isCancelled(jobId)) {
+          return
+        }
+
+        throw historyError
+      }
+      if (this.isCancelled(jobId)) {
+        return
+      }
 
       this.completeJob(jobId, {
         id: randomUUID(),
@@ -183,22 +258,32 @@ export class TranscriptionJobService {
         message: TRANSCRIPTION_FAILED_MESSAGE,
         durationMilliseconds: FAILED_NOTIFICATION_MILLISECONDS
       })
+    } finally {
+      this.finishJob(jobId)
     }
   }
 
   private async outputTranscription(
     target: RecordingTarget,
-    transcript: string
+    transcript: string,
+    signal: AbortSignal
   ): Promise<TranscriptionOutput> {
     switch (target.kind) {
       case 'clipboard':
+        throwIfAborted(signal)
         clipboard.writeText(transcript)
         return { kind: 'clipboard' }
       case 'herdr': {
         const text = transcript.replace(/\r\n|\r|\n/g, ' ')
         try {
-          await target.transport.run(target.pane, text)
+          throwIfAborted(signal)
+          await target.transport.run(target.pane, text, signal)
+          throwIfAborted(signal)
         } catch (error) {
+          if (signal.aborted) {
+            throw error
+          }
+
           this.loggerService.warnWithDetails(
             'Herdrへの入力に失敗しました。文字起こし結果を成功履歴へ保存します',
             error
@@ -215,9 +300,11 @@ export class TranscriptionJobService {
   private async recordCompletedHistoryItem(
     processedAudio: ProcessedAudioData,
     createdAt: string,
-    transcript: string
+    transcript: string,
+    signal: AbortSignal
   ): Promise<void> {
     try {
+      throwIfAborted(signal)
       await this.historyService.recordCompletedItem({
         id: processedAudio.id,
         createdAt,
@@ -225,7 +312,12 @@ export class TranscriptionJobService {
         transcript,
         audioPath: processedAudio.wavFilePath
       })
+      throwIfAborted(signal)
     } catch (error) {
+      if (signal.aborted) {
+        throw error
+      }
+
       this.loggerService.error('成功履歴の保存に失敗しました', {
         historyId: processedAudio.id,
         error: this.formatError(error)
@@ -236,19 +328,26 @@ export class TranscriptionJobService {
   private async recordFailedHistoryItem(
     jobId: string,
     createdAt: string,
-    processedAudio: ProcessedAudioData | null
+    processedAudio: ProcessedAudioData | null,
+    signal: AbortSignal
   ): Promise<void> {
     const historyId = processedAudio == null ? jobId : processedAudio.id
     const audioPath = processedAudio == null ? null : processedAudio.wavFilePath
 
     try {
+      throwIfAborted(signal)
       await this.historyService.recordFailedItem({
         id: historyId,
         createdAt,
         completedAt: new Date().toISOString(),
         audioPath
       })
+      throwIfAborted(signal)
     } catch (error) {
+      if (signal.aborted) {
+        throw error
+      }
+
       this.loggerService.error('失敗履歴の保存に失敗しました', {
         historyId,
         error: this.formatError(error)
@@ -257,8 +356,17 @@ export class TranscriptionJobService {
   }
 
   private completeJob(jobId: string, notification: TranscriptionJobNotification): void {
+    const job = this.jobsById.get(jobId)
+    if (job == null) {
+      throw new Error(`未登録の文字起こしジョブが完了しました: ${jobId}`)
+    }
+
+    if (job.cancelled || job.controller.signal.aborted) {
+      return
+    }
+
     if (this.isCleaningUp) {
-      this.activeJobIds.delete(jobId)
+      this.jobsById.delete(jobId)
       this.loggerService.infoWithDetails('終了処理中の文字起こしジョブ完了通知を破棄しました', {
         jobId,
         notificationKind: notification.kind
@@ -266,12 +374,31 @@ export class TranscriptionJobService {
       return
     }
 
-    const wasActive = this.activeJobIds.delete(jobId)
-    if (!wasActive) {
-      throw new Error(`未登録の文字起こしジョブが完了しました: ${jobId}`)
+    this.jobsById.delete(jobId)
+    this.setNotification(notification)
+  }
+
+  private finishJob(jobId: string): void {
+    if (this.jobsById.delete(jobId) && !this.isCleaningUp) {
+      this.publishStatus()
+    }
+  }
+
+  private isCancelled(jobId: string): boolean {
+    const job = this.jobsById.get(jobId)
+    return job == null || job.cancelled || job.controller.signal.aborted || this.isCleaningUp
+  }
+
+  private throwIfCancelled(jobId: string): void {
+    const job = this.jobsById.get(jobId)
+    if (job == null) {
+      throw new Error(`文字起こしジョブが見つかりません: ${jobId}`)
     }
 
-    this.setNotification(notification)
+    throwIfAborted(job.controller.signal)
+    if (job.cancelled || this.isCleaningUp) {
+      throw new Error('文字起こしジョブがキャンセルされました')
+    }
   }
 
   private setNotification(notification: TranscriptionJobNotification): void {
@@ -317,7 +444,7 @@ export class TranscriptionJobService {
   }
 
   private createStatusWindowState(): StatusWindowState {
-    const processingJobCount = this.activeJobIds.size
+    const processingJobCount = [...this.jobsById.values()].filter((job) => !job.cancelled).length
 
     if (this.recordingState.kind === 'recording') {
       return {
@@ -405,4 +532,10 @@ function createTranscriptionNotification(
 
 function createUnreachableTranscriptionOutputError(output: never): Error {
   return new Error(`到達不能な文字起こし出力です: ${JSON.stringify(output)}`)
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw signal.reason ?? new Error('文字起こしがキャンセルされました')
+  }
 }

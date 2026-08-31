@@ -9,6 +9,7 @@ interface API {
     onUpdated: (callback: () => void) => () => void
   }
   status: {
+    cancel: () => void
     getCurrent: () => Promise<StatusWindowState>
     onUpdate: (callback: (state: StatusWindowState) => void) => () => void
   }

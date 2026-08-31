@@ -3,7 +3,11 @@ import { execFile } from 'node:child_process'
 const COMMAND_TIMEOUT_MILLISECONDS = 5000
 
 /** 外部コマンドを引数配列で実行して標準出力を取得 */
-export function execFileText(filePath: string, args: readonly string[]): Promise<string> {
+export function execFileText(
+  filePath: string,
+  args: readonly string[],
+  signal: AbortSignal
+): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
       filePath,
@@ -11,7 +15,8 @@ export function execFileText(filePath: string, args: readonly string[]): Promise
       {
         encoding: 'utf8',
         shell: false,
-        timeout: COMMAND_TIMEOUT_MILLISECONDS
+        timeout: COMMAND_TIMEOUT_MILLISECONDS,
+        signal
       },
       (error, stdout) => {
         if (error != null) {

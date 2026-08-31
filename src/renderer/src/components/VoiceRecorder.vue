@@ -9,7 +9,8 @@ import type {
   RecordingErrorPayload,
   RecordingSessionPayload,
   RecordingStartOptions,
-  RecordingStopOptions
+  RecordingStopOptions,
+  RecordingStoppedPayload
 } from '../../../shared/types/recording'
 
 const recorder = ref<AudioRecorder | null>(null)
@@ -47,6 +48,15 @@ const handleRecordingStart = async (
         details: result.error
       })
     } else {
+      if (currentRecorder.isCancelledSession(options.sessionId)) {
+        const stoppedPayload: RecordingStoppedPayload = {
+          sessionId: options.sessionId,
+          reason: 'cancelled'
+        }
+        window.electron.ipcRenderer.send('recording:stopped', stoppedPayload)
+        return
+      }
+
       const startedPayload: RecordingSessionPayload = {
         sessionId: options.sessionId
       }
@@ -74,7 +84,7 @@ const handleRecordingStop = (_event: unknown, options: RecordingStopOptions): vo
     return
   }
 
-  const result = currentRecorder.stopRecording(options.sessionId, 'requested')
+  const result = currentRecorder.stopRecording(options.sessionId, options.reason)
   if (!result.success) {
     if (currentRecorder.hasStoppedSession(options.sessionId)) {
       console.warn('終了済み録音セッションへの停止指示を無視しました', {

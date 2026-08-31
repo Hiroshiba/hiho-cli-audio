@@ -34,12 +34,15 @@ export class GeminiClient {
   /** WAVファイルをテキストに変換する */
   async transcribe(
     wavFilePath: string,
-    options: TranscriptionOptions
+    options: TranscriptionOptions,
+    signal: AbortSignal
   ): Promise<TranscriptionResult> {
+    throwIfAborted(signal)
     const uploadedFile = await this.ai.files.upload({
       file: wavFilePath,
       config: {
-        mimeType: 'audio/wav'
+        mimeType: 'audio/wav',
+        abortSignal: signal
       }
     })
     const uploadedFileName = uploadedFile.name
@@ -48,7 +51,8 @@ export class GeminiClient {
     const transcriptionResult = await captureResult(async () => {
       const uploadedFileUri = uploadedFile.uri
       assertNonNullable(uploadedFileUri, 'アップロード結果にファイル URI がありません')
-      return this.transcribeUploadedFile(uploadedFileUri, options)
+      throwIfAborted(signal)
+      return this.transcribeUploadedFile(uploadedFileUri, options, signal)
     })
     const deletionResult = await captureResult(() =>
       this.ai.files.delete({ name: uploadedFileName })
@@ -72,31 +76,41 @@ export class GeminiClient {
 
   private async transcribeUploadedFile(
     uploadedFileUri: string,
-    options: TranscriptionOptions
+    options: TranscriptionOptions,
+    signal: AbortSignal
   ): Promise<TranscriptionResult> {
     const transcriptionConfig = {
       language_codes: [options.language],
       custom_vocabulary: [...options.customVocabulary],
       mode: options.mode
     } satisfies TranscriptionApiConfig
-    const interaction = await this.ai.interactions.create({
-      model: this.config.model,
-      input: [
-        {
-          type: 'audio',
-          uri: uploadedFileUri,
-          mime_type: 'audio/wav'
+    const interaction = await this.ai.interactions.create(
+      {
+        model: this.config.model,
+        input: [
+          {
+            type: 'audio',
+            uri: uploadedFileUri,
+            mime_type: 'audio/wav'
+          }
+        ],
+        generation_config: {
+          transcription_config: transcriptionConfig
         }
-      ],
-      generation_config: {
-        transcription_config: transcriptionConfig
-      }
-    })
+      },
+      { signal }
+    )
     const completedInteraction = CompletedInteractionSchema.parse(interaction)
 
     return {
       text: completedInteraction.output_text
     }
+  }
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw signal.reason ?? new Error('Geminiの文字起こしがキャンセルされました')
   }
 }
 

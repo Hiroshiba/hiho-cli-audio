@@ -132,9 +132,9 @@ export interface HerdrPane {
 /** Herdr CLIの通信処理 */
 export interface HerdrTransport {
   /** 現在のHerdrペインを取得 */
-  getCurrentPane(): Promise<HerdrPane>
+  getCurrentPane(signal: AbortSignal): Promise<HerdrPane>
   /** 指定したHerdrペインで文字列を実行 */
-  run(pane: HerdrPane, text: string): Promise<void>
+  run(pane: HerdrPane, text: string, signal: AbortSignal): Promise<void>
 }
 
 /** 録音結果の出力先 */

@@ -1,5 +1,5 @@
 /** 録音停止理由 */
-export type RecordingStopReason = 'requested' | 'auto-stop'
+export type RecordingStopReason = 'requested' | 'auto-stop' | 'cancelled'
 
 /** 録音セッション通知 */
 export interface RecordingSessionPayload {
@@ -14,7 +14,10 @@ export interface RecordingStartOptions extends RecordingSessionPayload {
 }
 
 /** 録音停止オプション */
-export type RecordingStopOptions = RecordingSessionPayload
+export interface RecordingStopOptions extends RecordingSessionPayload {
+  /** 録音停止理由 */
+  reason: RecordingStopReason
+}
 
 /** 録音停止通知 */
 export interface RecordingStoppedPayload extends RecordingSessionPayload {

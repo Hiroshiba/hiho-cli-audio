@@ -19,17 +19,23 @@ export class AudioProcessor {
   /** WebM形式音声データをリサンプリングして16kHz、モノラル、16bit WAVファイルに変換 */
   async processAudioData(
     recordingData: RecordingData,
-    audioId: string
+    audioId: string,
+    signal: AbortSignal
   ): Promise<Result<ProcessedAudioData, string>> {
     const tempInputPath = join(this.tempDir, `${audioId}.webm`)
     const outputPath = join(this.audioDir, `${audioId}.wav`)
 
     try {
+      throwIfAborted(signal)
       await fs.mkdir(this.tempDir, { recursive: true })
+      throwIfAborted(signal)
       await fs.mkdir(this.audioDir, { recursive: true })
-      await fs.writeFile(tempInputPath, recordingData.webmData)
+      throwIfAborted(signal)
+      await fs.writeFile(tempInputPath, recordingData.webmData, { signal })
+      throwIfAborted(signal)
 
-      const success = await this.resampleWithFFmpeg(tempInputPath, outputPath)
+      const success = await this.resampleWithFFmpeg(tempInputPath, outputPath, signal)
+      throwIfAborted(signal)
       if (!success) {
         this.loggerService.error('FFmpegリサンプリングに失敗しました', {
           inputPath: tempInputPath,
@@ -41,6 +47,7 @@ export class AudioProcessor {
       }
 
       await this.removeTemporaryFile(tempInputPath, '一時WebMファイルの削除に失敗しました')
+      throwIfAborted(signal)
       return {
         success: true,
         data: {
@@ -51,41 +58,56 @@ export class AudioProcessor {
     } catch (error) {
       await this.removeTemporaryFile(outputPath, '変換途中のWAVファイル削除に失敗しました')
       await this.removeTemporaryFile(tempInputPath, '一時WebMファイルの削除に失敗しました')
+
+      if (signal.aborted) {
+        throw error
+      }
+
       this.loggerService.error('音声処理に失敗しました', error)
       return { success: false, error: `音声処理エラー: ${error}` }
     }
   }
 
   /** FFmpegを使用して音声をリサンプリング */
-  private async resampleWithFFmpeg(inputPath: string, outputPath: string): Promise<boolean> {
+  private async resampleWithFFmpeg(
+    inputPath: string,
+    outputPath: string,
+    signal: AbortSignal
+  ): Promise<boolean> {
     const ffmpegPath = ffmpegStatic
     if (ffmpegPath == null || ffmpegPath === '') {
       throw new Error('FFmpeg静的バイナリが見つかりません')
     }
 
     return new Promise((resolve) => {
-      const ffmpeg = spawn(ffmpegPath, [
-        '-i',
-        inputPath,
-        '-ar',
-        '16000',
-        '-ac',
-        '1',
-        '-acodec',
-        'pcm_s16le',
-        '-f',
-        'wav',
-        '-y',
-        outputPath
-      ])
+      const ffmpeg = spawn(
+        ffmpegPath,
+        [
+          '-i',
+          inputPath,
+          '-ar',
+          '16000',
+          '-ac',
+          '1',
+          '-acodec',
+          'pcm_s16le',
+          '-f',
+          'wav',
+          '-y',
+          outputPath
+        ],
+        { signal }
+      )
 
       ffmpeg.on('close', (code) => {
         resolve(code === 0)
       })
 
       ffmpeg.on('error', (error) => {
-        console.error('FFmpeg実行エラー:', error)
-        this.loggerService.error('FFmpeg実行エラー', error)
+        if (!signal.aborted) {
+          console.error('FFmpeg実行エラー:', error)
+          this.loggerService.error('FFmpeg実行エラー', error)
+        }
         resolve(false)
       })
     })
@@ -106,4 +128,10 @@ export class AudioProcessor {
 
 function hasErrorCode(error: unknown, code: string): boolean {
   return error instanceof Error && 'code' in error && error.code === code
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw signal.reason ?? new Error('音声処理がキャンセルされました')
+  }
 }
