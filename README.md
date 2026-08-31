@@ -1,54 +1,40 @@
 # hiho-cli-audio
 
-ホットキーで録音し、Gemini APIで文字起こしした結果を出力先に応じてクリップボードまたはHerdrへ送る個人用Electronアプリケーションです。
+ホットキーで録音した音声をGemini APIで文字起こしし、クリップボードまたはHerdrへ送る常駐アプリです。WindowsとmacOSで使えます。
 
-詳しい仕様は[要件定義書](docs/要件定義書.md)を参照してください。
+## インストール
 
-## 機能
+[GitHub Releases](https://github.com/Hiroshiba/hiho-cli-audio/releases/latest)から、OSに合うファイルをダウンロードしてください。
 
-- Windows通知領域とmacOSメニューバーに常駐
-- グローバルホットキーで録音開始と停止を切り替え
-- 録音停止後にWebMを16kHzモノラルWAVへ変換
-- Gemini APIで文字起こしし、完了順に設定した出力先へ送信
-- 録音中、認識中、完了、失敗だけを小型状態ウィンドウに表示
-- 録音中と認識中は、小型状態ウィンドウのバツボタンからキャンセル可能
-- トレイメニューから履歴ウィンドウを開き、成功した履歴をクリックで再コピー
-- 設定はアプリ内画面ではなくYAMLファイルを直接編集
+- Windows: `hiho-cli-audio-<version>-setup.exe`
+- macOS: `hiho-cli-audio-<version>.dmg`
 
-## 対応OS
+Windowsではインストーラーを実行します。macOSではDMGを開き、hiho-cli-audioをアプリケーションフォルダへコピーします。
 
-- Windows
-- macOS
+開発中の最新版は[`edge`リリース](https://github.com/Hiroshiba/hiho-cli-audio/releases/tag/edge)から入手できます。`main`の更新ごとに置き換わるため、通常は安定版を使用してください。
 
-Linux向けビルドは提供しません。
+### macOSでアプリを開けない場合
 
-## macOS版の初回起動
-
-初回起動時に「hiho-cli-audio.appは壊れているため開けません」と表示された場合は、次のコマンドを実行してください。
+初回起動時に「hiho-cli-audio.appは壊れているため開けません」と表示された場合は、アプリをアプリケーションフォルダへ置いてから次のコマンドを実行してください。
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/hiho-cli-audio.app"
 ```
 
-## 使い方
+## 初回起動後に設定ファイルを編集する
 
-1. アプリケーションを起動する
-2. 初回起動で作成された `config.yaml` にGemini APIキーを設定する
-3. アプリケーションを再起動する
-4. ホットキーで録音を開始する
-5. もう一度ホットキーを押して録音を停止する
-6. 文字起こし完了後、設定と前面状態に応じた出力先へ結果が送られる
+初回起動では設定ファイルが自動で作成されます。Gemini APIキーが未設定のためエラーが表示され、アプリは終了します。
 
-初期ホットキーはWindowsが `Ctrl+Shift+D`、macOSが `Command+Shift+D` です。
+1. OSに応じた設定ファイルを開く
+   - Windows: `%APPDATA%\hiho-cli-audio\config.yaml`
+   - macOS: `~/Library/Application Support/hiho-cli-audio/config.yaml`
+2. `transcription.gemini.apiKey`にGemini APIキーを設定する
+3. hiho-cli-audioを再起動する
 
-## 設定ファイル
+設定の変更は再起動後に反映されます。APIキーは設定ファイルに平文で保存されるため、このファイルを共有しないでください。
 
-設定ファイルはElectronのユーザーデータディレクトリに作成されます。
-
-- Windows: `%APPDATA%\hiho-cli-audio\config.yaml`
-- macOS: `~/Library/Application Support/hiho-cli-audio/config.yaml`
-
-設定例です。
+<details>
+<summary>設定例と主な項目を確認する</summary>
 
 ```yaml
 app:
@@ -82,16 +68,32 @@ windows:
     narrow: true
 ```
 
-設定の変更はアプリケーション再起動後に反映されます。
+`transcription.mode`には、発話をそのまま残す`verbatim`か、読みやすく整える`smart`を指定します。`transcription.customVocabulary`には、認識を優先する固有名詞や専門用語を最大1000件指定できます。
 
-`transcription.mode` は発話をそのまま残す `verbatim` または読みやすく整える `smart` を指定します。
-`transcription.customVocabulary` には認識時に優先する固有名詞や専門用語を最大1000件指定できます。
+設定項目が不足している場合や未対応の項目が含まれる場合は起動に失敗します。自動生成された設定ファイルを基に、必要な値だけを変更してください。
 
-## Herdrへの入力
+</details>
 
-`herdr` はhiho-cli-audioの `config.yaml` に置くトップレベル設定です。設定全体は任意で、設定しない場合は認識結果をクリップボードだけへ保存します。
+## ホットキーで録音する
 
-macOS では次のように Herdr 実行ファイルのパスを指定します。
+起動後はWindowsの通知領域またはmacOSのメニューバーに常駐します。初回録音時にマイクの使用を求められたら許可してください。
+
+初期ホットキーはWindowsが`Control+Shift+D`、macOSが`Command+Shift+D`です。ホットキーを押すと録音が始まり、もう一度押すと録音を終了して文字起こしを始めます。通常は認識結果がクリップボードに保存されます。
+
+成功した認識結果はトレイメニューから履歴を開き、選択すると再びクリップボードへコピーできます。
+
+macOSでホットキーが反応しない場合は、システム設定でhiho-cli-audioにアクセシビリティ権限を与えてください。
+
+## Herdrへ入力する
+
+設定ファイルに`herdr`を追加すると、録音開始時に対象のターミナルが前面にある場合だけ認識結果をHerdrへ送ります。`herdr`を設定しない場合は、常にクリップボードへ保存します。
+
+<details>
+<summary>Herdr連携の設定例と出力条件を確認する</summary>
+
+### macOS
+
+Herdr実行ファイルの絶対パスを指定します。
 
 ```yaml
 herdr:
@@ -99,9 +101,11 @@ herdr:
     binaryPath: '/absolute/path/to/herdr'
 ```
 
-iTerm2 が前面にあり、ウィンドウタイトルに `[HERDR]` が含まれる場合だけ Herdr への入力対象になります。macOS が自動化やアクセシビリティの許可を求めた場合は、システム設定のプライバシーとセキュリティで hiho-cli-audio に System Events の操作を許可してください。
+iTerm2を前面にし、ウィンドウタイトルに`[HERDR]`を含めてから録音を始めます。前面状態の取得時にSystem Eventsの操作を求められた場合は、hiho-cli-audioに自動化を許可してください。
 
-Windows では WSL の値と WSL 内の Herdr 実行ファイルのパスを指定します。
+### Windows
+
+使用するWSLの情報と、WSL内にあるHerdr実行ファイルのパスを指定します。
 
 ```yaml
 herdr:
@@ -111,36 +115,26 @@ herdr:
     binaryPath: '<WSL内のHerdr実行ファイルのパス>'
 ```
 
-Windows Terminal が前面にあり、ウィンドウタイトルに `[HERDR]` が含まれる場合だけ Herdr への入力対象になります。Windows Terminal では対象タブを右クリックし、タブ名の変更で `[HERDR] Herdr` などにしてください。この手順は実機で確認済みです。macOS と Windows のどちらも、タイトルにマーカーがない場合はクリップボードへだけ出力します。
+Windows Terminalを前面にし、ウィンドウタイトルに`[HERDR]`を含めてから録音を始めます。対象タブを右クリックし、「タブ名の変更」で`[HERDR]`を含む名前にする方法があります。
 
-Herdr の `[ui] window_title` は自動化したい場合の候補です。次の設定例は Herdr のバージョンに依存します。
+### 出力先の決まり方
 
-```toml
-[ui]
-window_title = "[HERDR] {workspace} — {tab}"
-```
+- 録音開始時に対象のターミナルと`[HERDR]`を確認できた場合は、その時点のHerdrペインへ送る
+- 対象を確認できない場合はクリップボードへ保存する
+- Herdrへの送信に失敗した場合は誤送信を避けるためクリップボードへ保存せず、失敗を表示する
 
-Herdr 0.8.0 での設定項目は未確認です。インストール済みの Herdr で `herdr --help` と設定仕様を確認してください。これは確定した設定手順ではありません。タイトルに `[HERDR]` を設定できない環境では判定条件を満たさず、誤送信を防ぐためクリップボードへ出力します。
-
-録音開始時に前面状態を判定し、Herdr target になった場合は現在の Herdr pane を取得して送信先を固定します。録音中に別の pane や別のアプリケーションへ移動しても、開始時の pane へ送信します。clipboard target の場合だけ認識原文をクリップボードへ保存します。Herdr target では改行を空白に置き換えた文字列を `pane run` でEnter付きで送信し、入力を開始します。成功時はクリップボードを変更しません。前面判定または pane 取得に失敗した場合はクリップボードへ出力します。Herdr 送信に失敗した場合はクリップボードへフォールバックせず、別の pane にも送らず、認識原文を成功履歴へ保存したうえで状態ウィンドウに失敗を表示します。
-
-動作確認では、設定した環境で次を確認してください。
-
-- macOS は `<Herdr実行ファイルのパス> pane current` が JSON を返すこと
-- Windows は `wsl.exe -d "<WSLディストリビューション名>" -u "<WSLユーザー名>" -- "<WSL内のHerdr実行ファイルのパス>" pane current` が動くこと
-- Herdr の端末タイトルに `[HERDR]` が表示されること
-- Herdr 送信前にクリップボードへ任意の識別文字列を入れ、送信後も内容が変わらないこと
-- 成功表示が `Herdrへ入力しました` になること
-- 設定後にアプリケーションを再起動すること
+</details>
 
 ## 開発
+
+Node.js 22.14.0とpnpm 10.16.1を使用します。
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-確認コマンドです。
+静的解析、型チェック、ビルドは次のコマンドで実行します。
 
 ```bash
 pnpm lint
@@ -148,27 +142,15 @@ pnpm typecheck
 pnpm build
 ```
 
-### GitHub Actionsのバージョン固定
-
-[pinact](https://github.com/suzuki-shunsuke/pinact)を使ってGitHub Actionsのバージョンをfull-length commit SHAに固定しています。
-
-```bash
-# バージョンを固定する
-pinact run
-
-# バージョンを更新して固定する
-pinact run --update --min-age 7
-```
-
-## ビルド
+OS別の配布物を作成する場合は、次のコマンドを使用します。
 
 ```bash
 pnpm build:win
 pnpm build:mac
 ```
 
-GitHub Actionsの `Release` ワークフローはインストーラーを作成し、指定したバージョンのGitHub Releaseへアップロードします。自動更新、署名、公証は行いません。
+詳しい仕様は[要件定義書](docs/要件定義書.md)を参照してください。
 
 ## ライセンス
 
-MIT Licenseです。詳細は [LICENSE](LICENSE) を参照してください。
+ライセンスは[MIT License](LICENSE)です。
