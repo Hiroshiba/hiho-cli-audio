@@ -121,7 +121,10 @@ onUnmounted(() => {
         aria-label="音声認識をキャンセル"
         @click="handleCancel"
       >
-        ×
+        <svg class="status-cancel-icon" viewBox="0 0 16 16" aria-hidden="true">
+          <line x1="3" y1="3" x2="13" y2="13" />
+          <line x1="13" y1="3" x2="3" y2="13" />
+        </svg>
       </button>
     </div>
   </main>
@@ -289,6 +292,19 @@ onUnmounted(() => {
 .status-cancel-button:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 2px;
+}
+
+.status-cancel-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+.status-cancel-icon line {
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.5;
 }
 
 @keyframes spin {
