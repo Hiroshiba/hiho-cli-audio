@@ -167,7 +167,9 @@ pnpm build:win
 pnpm build:mac
 ```
 
-GitHub Actionsの `Release` ワークフローはインストーラーを作成し、指定したバージョンのGitHub Releaseへアップロードします。自動更新、署名、公証は行いません。
+GitHub Actionsの `Release` ワークフローは従来どおり手動で実行し、version を指定して公開します。インストーラーを作成し、指定したバージョンのGitHub Releaseへアップロードします。自動更新、署名、公証は行いません。
+
+`main` への push では `Edge Release` ワークフローが自動実行され、Windows と macOS のインストーラーを固定タグ `edge` の prerelease へ毎回上書きします。`edge` は最新の main の動作確認用です。安定版には version を指定した `Release` ワークフローを使ってください。
 
 ## ライセンス
 
