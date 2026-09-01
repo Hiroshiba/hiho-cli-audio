@@ -27,7 +27,7 @@ function createDisplayText(state: StatusWindowState, nowMilliseconds: number): s
       }
 
       if (state.target.kind === 'herdr') {
-        return `録音中 ${elapsedTime} · Herdr ${state.target.paneId}`
+        return `録音中 ${elapsedTime} · Herdr`
       }
 
       const unreachableTarget: never = state.target
