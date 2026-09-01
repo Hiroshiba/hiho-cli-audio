@@ -170,8 +170,8 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   align-items: center;
-  gap: 8px;
-  padding: 0 14px;
+  gap: 6px;
+  padding: 0 12px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.72);
   -webkit-app-region: drag;
@@ -260,7 +260,7 @@ onUnmounted(() => {
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
-  font-size: 14.5px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.4;
   text-overflow: ellipsis;
