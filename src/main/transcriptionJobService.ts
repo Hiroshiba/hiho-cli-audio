@@ -24,7 +24,12 @@ type TranscriptionOutput = { kind: 'clipboard' } | { kind: 'herdr' } | { kind: '
 
 type RecordingState =
   | { kind: 'inactive' }
-  | { kind: 'recording'; recordingStartedAt: string; target: RecordingTargetSummary }
+  | {
+      kind: 'recording'
+      sessionId: string
+      recordingStartedAt: string
+      target: RecordingTargetSummary
+    }
 
 type TranscriptionJobState = {
   controller: AbortController
@@ -64,24 +69,35 @@ export class TranscriptionJobService {
   }
 
   /** 録音開始状態を通知 */
-  startRecording(target: RecordingTarget): void {
+  startRecording(sessionId: string): void {
     if (this.recordingState.kind === 'recording') {
       throw new Error('録音状態は既に開始されています')
     }
 
     this.recordingState = {
       kind: 'recording',
+      sessionId,
       recordingStartedAt: new Date().toISOString(),
-      target: createRecordingTargetSummary(target)
+      target: { kind: 'pending' }
     }
     this.clearNotificationTimer()
     this.notification = null
     this.publishStatus()
   }
 
+  /** 録音出力先の解決結果を通知 */
+  updateRecordingTarget(sessionId: string, target: RecordingTarget): void {
+    if (this.recordingState.kind !== 'recording' || this.recordingState.sessionId !== sessionId) {
+      return
+    }
+
+    this.recordingState.target = createRecordingTargetSummary(target)
+    this.publishStatus()
+  }
+
   /** 録音停止状態を通知 */
-  stopRecording(): void {
-    if (this.recordingState.kind === 'inactive') {
+  stopRecording(sessionId: string): void {
+    if (this.recordingState.kind === 'inactive' || this.recordingState.sessionId !== sessionId) {
       return
     }
 
@@ -106,7 +122,7 @@ export class TranscriptionJobService {
   }
 
   /** 録音データから文字起こしジョブを開始 */
-  submitRecordingData(recordingData: RecordingData, target: RecordingTarget): void {
+  submitRecordingData(recordingData: RecordingData, targetPromise: Promise<RecordingTarget>): void {
     if (this.isCleaningUp) {
       this.loggerService.info('終了処理中の録音データを破棄しました')
       return
@@ -125,7 +141,7 @@ export class TranscriptionJobService {
       dataSize: recordingData.webmData.length
     })
 
-    void this.runJob(jobId, createdAt, recordingData, target)
+    void this.runJob(jobId, createdAt, recordingData, targetPromise)
   }
 
   /** 録音と実行中の文字起こしをキャンセル */
@@ -168,7 +184,7 @@ export class TranscriptionJobService {
     jobId: string,
     createdAt: string,
     recordingData: RecordingData,
-    target: RecordingTarget
+    targetPromise: Promise<RecordingTarget>
   ): Promise<void> {
     let processedAudio: ProcessedAudioData | null = null
     const job = this.jobsById.get(jobId)
@@ -177,6 +193,7 @@ export class TranscriptionJobService {
     }
 
     try {
+      const target = await targetPromise
       this.throwIfCancelled(jobId)
       const processResult = await this.audioProcessor.processAudioData(
         recordingData,
