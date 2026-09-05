@@ -25,10 +25,11 @@ jobs:
         include:
           - os: windows-latest
             label: Windows
-            build_args: --win
+            build_args: --win --config.nsisWeb.appPackageUrl=https://github.com/${{ github.repository }}/releases/download/edge
             artifact_name: hiho-cli-audio-windows
             artifact_path: |
               dist/*.exe
+              dist/*.nsis.7z
           - os: macos-latest
             label: macOS
             build_args: --mac
