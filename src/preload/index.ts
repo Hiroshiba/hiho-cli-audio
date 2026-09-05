@@ -20,6 +20,7 @@ const StatusWindowStateSchema = z.discriminatedUnion('kind', [
       recordingStartedAt: z.string().min(1),
       processingJobCount: z.number().int().nonnegative(),
       target: z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('pending') }).strict(),
         z.object({ kind: z.literal('clipboard') }).strict(),
         z
           .object({

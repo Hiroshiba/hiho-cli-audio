@@ -22,6 +22,10 @@ function createDisplayText(state: StatusWindowState, nowMilliseconds: number): s
   switch (state.kind) {
     case 'recording': {
       const elapsedTime = formatElapsedTime(state.recordingStartedAt, nowMilliseconds)
+      if (state.target.kind === 'pending') {
+        return `録音中 ${elapsedTime} · 出力先確認中`
+      }
+
       if (state.target.kind === 'clipboard') {
         return `録音中 ${elapsedTime}`
       }

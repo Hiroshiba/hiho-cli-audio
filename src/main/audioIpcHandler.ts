@@ -40,7 +40,6 @@ const CANCELLED_SESSION_ID_LIMIT = 20
 type RecordingControlState =
   | { kind: 'not-ready'; pendingStart: boolean }
   | { kind: 'idle' }
-  | { kind: 'resolving-target'; sessionId: string; cancelRequested: boolean }
   | { kind: 'starting'; sessionId: string; stopAfterStart: boolean }
   | { kind: 'recording'; sessionId: string }
   | { kind: 'stopping'; sessionId: string; pendingStart: boolean }
@@ -58,6 +57,7 @@ export class AudioIpcHandler {
     kind: 'uninitialized'
   }
   private readonly targetsBySessionId = new Map<string, RecordingTarget>()
+  private readonly targetResolutionPromises = new Map<string, Promise<RecordingTarget>>()
   private readonly targetResolutionControllers = new Map<string, AbortController>()
   private readonly cancelledSessionIds = new Set<string>()
 
@@ -101,10 +101,7 @@ export class AudioIpcHandler {
         this.loggerService.info('録音ウィンドウの準備完了後に録音を開始します')
         return
       case 'idle':
-        this.resolveRecordingTargetAndStart()
-        return
-      case 'resolving-target':
-        this.loggerService.info('録音出力先の解決処理中です')
+        this.startRecordingWithTargetResolution()
         return
       case 'starting':
         this.loggerService.info('録音開始処理中です')
@@ -147,19 +144,6 @@ export class AudioIpcHandler {
       case 'idle':
         this.loggerService.info('録音は開始されていません')
         return
-      case 'resolving-target':
-        if (state.cancelRequested) {
-          this.loggerService.info('録音出力先の解決キャンセルは既に要求されています')
-          return
-        }
-
-        this.recordingState = {
-          kind: 'resolving-target',
-          sessionId: state.sessionId,
-          cancelRequested: true
-        }
-        this.loggerService.info('録音出力先の解決をキャンセルしました')
-        return
       case 'starting':
         if (state.stopAfterStart) {
           this.loggerService.info('録音開始完了後の録音停止は既に予約されています')
@@ -186,11 +170,6 @@ export class AudioIpcHandler {
 
   /** 録音トグル */
   toggleRecording(): void {
-    if (this.recordingState.kind === 'resolving-target') {
-      this.stopRecording()
-      return
-    }
-
     const state = this.recordingState
 
     if (state.kind === 'starting' || state.kind === 'recording') {
@@ -212,15 +191,15 @@ export class AudioIpcHandler {
   }
 
   private cancelRecording(): void {
-    for (const sessionId of this.targetsBySessionId.keys()) {
+    const sessionIds = new Set([
+      ...this.targetsBySessionId.keys(),
+      ...this.targetResolutionPromises.keys(),
+      ...this.targetResolutionControllers.keys()
+    ])
+    for (const sessionId of sessionIds) {
       this.rememberCancelledSession(sessionId)
-      this.targetsBySessionId.delete(sessionId)
+      this.abortTargetResolution(sessionId)
     }
-    for (const [sessionId, controller] of this.targetResolutionControllers) {
-      this.rememberCancelledSession(sessionId)
-      controller.abort()
-    }
-    this.targetResolutionControllers.clear()
 
     const state = this.recordingState
 
@@ -233,14 +212,9 @@ export class AudioIpcHandler {
         return
       case 'idle':
         return
-      case 'resolving-target':
-        this.rememberCancelledSession(state.sessionId)
-        this.abortTargetResolution(state.sessionId)
-        this.recordingState = { kind: 'idle' }
-        this.loggerService.info('録音出力先の解決をキャンセルしました')
-        return
       case 'starting':
         this.rememberCancelledSession(state.sessionId)
+        this.abortTargetResolution(state.sessionId)
         this.recordingState = {
           kind: 'stopping',
           sessionId: state.sessionId,
@@ -254,6 +228,7 @@ export class AudioIpcHandler {
         return
       case 'recording':
         this.rememberCancelledSession(state.sessionId)
+        this.abortTargetResolution(state.sessionId)
         this.recordingState = {
           kind: 'stopping',
           sessionId: state.sessionId,
@@ -267,6 +242,7 @@ export class AudioIpcHandler {
         return
       case 'stopping':
         this.rememberCancelledSession(state.sessionId)
+        this.abortTargetResolution(state.sessionId)
         this.recordingState = {
           kind: 'stopping',
           sessionId: state.sessionId,
@@ -288,6 +264,8 @@ export class AudioIpcHandler {
     const shouldStart = state.kind === 'not-ready' && state.pendingStart
 
     if (state.kind !== 'not-ready' && state.kind !== 'idle') {
+      this.rememberCancelledSession(state.sessionId)
+      this.abortTargetResolution(state.sessionId)
       this.loggerService.warnWithDetails('録音ウィンドウが録音中に準備完了を通知しました', {
         state
       })
@@ -307,7 +285,7 @@ export class AudioIpcHandler {
     const state = this.recordingState
 
     if (this.cancelledSessionIds.has(startedPayload.sessionId)) {
-      this.targetsBySessionId.delete(startedPayload.sessionId)
+      this.abortTargetResolution(startedPayload.sessionId)
       if (!this.sendStopCommandForSession(startedPayload.sessionId, 'cancelled')) {
         if (this.isCurrentSession(startedPayload.sessionId)) {
           this.finishRecordingSession(startedPayload.sessionId)
@@ -329,16 +307,15 @@ export class AudioIpcHandler {
       return
     }
 
-    const target = this.targetsBySessionId.get(startedPayload.sessionId)
-    if (target == null) {
-      throw new Error(`録音セッションの出力先が見つかりません: ${startedPayload.sessionId}`)
-    }
-
     this.recordingState = {
       kind: 'recording',
       sessionId: startedPayload.sessionId
     }
-    this.transcriptionJobService.startRecording(target)
+    this.transcriptionJobService.startRecording(startedPayload.sessionId)
+    const target = this.targetsBySessionId.get(startedPayload.sessionId)
+    if (target != null) {
+      this.transcriptionJobService.updateRecordingTarget(startedPayload.sessionId, target)
+    }
     this.loggerService.infoWithDetails('録音開始を確定しました', startedPayload)
 
     if (state.stopAfterStart) {
@@ -350,7 +327,7 @@ export class AudioIpcHandler {
     const stoppedPayload: RecordingStoppedPayload = RecordingStoppedPayloadSchema.parse(payload)
     if (stoppedPayload.reason === 'cancelled') {
       this.rememberCancelledSession(stoppedPayload.sessionId)
-      this.targetsBySessionId.delete(stoppedPayload.sessionId)
+      this.abortTargetResolution(stoppedPayload.sessionId)
     }
 
     this.finishRecordingSession(stoppedPayload.sessionId)
@@ -364,7 +341,7 @@ export class AudioIpcHandler {
     const recordingData: RecordingData = RecordingDataSchema.parse(payload)
 
     if (this.cancelledSessionIds.has(recordingData.sessionId)) {
-      this.targetsBySessionId.delete(recordingData.sessionId)
+      this.abortTargetResolution(recordingData.sessionId)
       this.forgetCancelledSession(recordingData.sessionId)
       this.loggerService.infoWithDetails('キャンセル済み録音セッションの音声データを破棄しました', {
         sessionId: recordingData.sessionId,
@@ -373,12 +350,13 @@ export class AudioIpcHandler {
       return
     }
 
-    const target = this.targetsBySessionId.get(recordingData.sessionId)
-    if (target == null) {
-      throw new Error(`録音セッションの出力先が見つかりません: ${recordingData.sessionId}`)
+    const targetPromise = this.targetResolutionPromises.get(recordingData.sessionId)
+    if (targetPromise == null) {
+      throw new Error(`録音セッションの出力先解決処理が見つかりません: ${recordingData.sessionId}`)
     }
 
     this.targetsBySessionId.delete(recordingData.sessionId)
+    this.targetResolutionPromises.delete(recordingData.sessionId)
 
     console.log('WebM音声データを受信しました:', {
       sessionId: recordingData.sessionId,
@@ -393,14 +371,14 @@ export class AudioIpcHandler {
       this.finishRecordingSession(recordingData.sessionId)
     }
 
-    this.transcriptionJobService.submitRecordingData(recordingData, target)
+    this.transcriptionJobService.submitRecordingData(recordingData, targetPromise)
   }
 
   private handleRecordingError(_event: Electron.IpcMainEvent, payload: unknown): void {
     const recordingErrorPayload: RecordingErrorPayload = RecordingErrorPayloadSchema.parse(payload)
 
     if (this.cancelledSessionIds.has(recordingErrorPayload.sessionId)) {
-      this.targetsBySessionId.delete(recordingErrorPayload.sessionId)
+      this.abortTargetResolution(recordingErrorPayload.sessionId)
       if (this.isCurrentSession(recordingErrorPayload.sessionId)) {
         this.finishRecordingSession(recordingErrorPayload.sessionId)
       }
@@ -411,7 +389,8 @@ export class AudioIpcHandler {
       return
     }
 
-    this.targetsBySessionId.delete(recordingErrorPayload.sessionId)
+    this.rememberCancelledSession(recordingErrorPayload.sessionId)
+    this.abortTargetResolution(recordingErrorPayload.sessionId)
 
     if (this.isCurrentSession(recordingErrorPayload.sessionId)) {
       const state = this.recordingState
@@ -428,63 +407,73 @@ export class AudioIpcHandler {
     this.loggerService.error('録音処理に失敗しました', recordingErrorPayload)
   }
 
-  private resolveRecordingTargetAndStart(): void {
+  private startRecordingWithTargetResolution(): void {
     const resolver = this.getRecordingTargetResolver()
     const sessionId = randomUUID()
     const controller = new AbortController()
-    this.recordingState = {
-      kind: 'resolving-target',
-      sessionId,
-      cancelRequested: false
-    }
     this.targetResolutionControllers.set(sessionId, controller)
-    void this.resolveRecordingTarget(sessionId, resolver, controller.signal).catch(
-      (error: unknown) => {
-        if (controller.signal.aborted || this.cancelledSessionIds.has(sessionId)) {
-          this.forgetCancelledSession(sessionId)
-          return
-        }
-
-        this.targetsBySessionId.delete(sessionId)
-        if (this.isCurrentSession(sessionId)) {
-          this.recordingState = { kind: 'idle' }
-          this.transcriptionJobService.notifyRecordingFailure('録音出力先を解決できませんでした')
-        }
-        this.loggerService.error('録音出力先の解決に失敗しました', error)
-      }
-    )
+    const targetPromise = this.resolveRecordingTarget(sessionId, resolver, controller.signal)
+    this.targetResolutionPromises.set(sessionId, targetPromise)
+    void targetPromise.catch((error: unknown) => {
+      this.handleTargetResolutionError(sessionId, controller.signal, error)
+    })
+    this.sendStartRecordingCommand(sessionId)
   }
 
   private async resolveRecordingTarget(
     sessionId: string,
     resolver: RecordingTargetResolver,
     signal: AbortSignal
-  ): Promise<void> {
+  ): Promise<RecordingTarget> {
     try {
       const target = await resolver.resolveAtRecordingStart(signal)
 
       if (signal.aborted || this.cancelledSessionIds.has(sessionId)) {
-        return
+        throw signal.reason ?? new Error('録音出力先の解決がキャンセルされました')
       }
 
-      const state = this.recordingState
-      if (state.kind !== 'resolving-target' || state.sessionId !== sessionId) {
-        throw new Error(`録音出力先の解決対象が一致しません: ${sessionId}`)
+      if (this.targetResolutionPromises.has(sessionId)) {
+        this.targetsBySessionId.set(sessionId, target)
+        this.transcriptionJobService.updateRecordingTarget(sessionId, target)
       }
 
-      if (state.cancelRequested) {
-        this.recordingState = { kind: 'idle' }
-        return
-      }
-
-      this.targetsBySessionId.set(sessionId, target)
-      this.sendStartRecordingCommand(sessionId)
+      return target
     } finally {
       this.targetResolutionControllers.delete(sessionId)
-      if (signal.aborted) {
+    }
+  }
+
+  private handleTargetResolutionError(
+    sessionId: string,
+    signal: AbortSignal,
+    error: unknown
+  ): void {
+    if (signal.aborted || this.cancelledSessionIds.has(sessionId)) {
+      return
+    }
+
+    this.targetsBySessionId.delete(sessionId)
+    const state = this.recordingState
+    if (this.isCurrentSession(sessionId)) {
+      this.rememberCancelledSession(sessionId)
+      this.abortTargetResolution(sessionId)
+      this.transcriptionJobService.notifyRecordingFailure('録音出力先を解決できませんでした')
+
+      if (state.kind !== 'stopping') {
+        this.recordingState = {
+          kind: 'stopping',
+          sessionId,
+          pendingStart: false
+        }
+      }
+
+      if (!this.sendStopCommandForSession(sessionId, 'cancelled')) {
+        this.finishRecordingSession(sessionId)
         this.forgetCancelledSession(sessionId)
       }
     }
+
+    this.loggerService.error('録音出力先の解決に失敗しました', error)
   }
 
   private getRecordingTargetResolver(): RecordingTargetResolver {
@@ -498,13 +487,13 @@ export class AudioIpcHandler {
 
   private sendStartRecordingCommand(sessionId: string): void {
     if (this.cancelledSessionIds.has(sessionId)) {
-      this.targetsBySessionId.delete(sessionId)
+      this.abortTargetResolution(sessionId)
       return
     }
 
     const recordingWindow = this.getRecordingWindowForOperation('録音開始')
     if (recordingWindow == null) {
-      this.targetsBySessionId.delete(sessionId)
+      this.abortTargetResolution(sessionId)
       this.recordingState = { kind: 'idle' }
       this.transcriptionJobService.notifyRecordingFailure('録音機能に問題が発生しました')
       return
@@ -527,6 +516,8 @@ export class AudioIpcHandler {
   private sendStopRecordingCommand(sessionId: string, pendingStart: boolean): void {
     const recordingWindow = this.getRecordingWindowForOperation('録音停止')
     if (recordingWindow == null) {
+      this.rememberCancelledSession(sessionId)
+      this.abortTargetResolution(sessionId)
       this.recordingState = { kind: 'idle' }
       this.transcriptionJobService.notifyRecordingFailure('録音機能に問題が発生しました')
       return
@@ -545,6 +536,7 @@ export class AudioIpcHandler {
   private sendStopCommandForSession(sessionId: string, reason: RecordingStopReason): boolean {
     const recordingWindow = this.getRecordingWindowForOperation('録音停止')
     if (recordingWindow == null) {
+      this.abortTargetResolution(sessionId)
       return false
     }
 
@@ -567,7 +559,7 @@ export class AudioIpcHandler {
     if (state.kind === 'stopping' && state.sessionId === sessionId) {
       const pendingStart = state.pendingStart
       this.recordingState = { kind: 'idle' }
-      this.transcriptionJobService.stopRecording()
+      this.transcriptionJobService.stopRecording(sessionId)
 
       if (pendingStart) {
         this.startRecording()
@@ -578,13 +570,13 @@ export class AudioIpcHandler {
 
     if (state.kind === 'recording' && state.sessionId === sessionId) {
       this.recordingState = { kind: 'idle' }
-      this.transcriptionJobService.stopRecording()
+      this.transcriptionJobService.stopRecording(sessionId)
       return
     }
 
     if (state.kind === 'starting' && state.sessionId === sessionId) {
       this.recordingState = { kind: 'idle' }
-      this.transcriptionJobService.stopRecording()
+      this.transcriptionJobService.stopRecording(sessionId)
       return
     }
 
@@ -597,12 +589,7 @@ export class AudioIpcHandler {
   private isCurrentSession(sessionId: string): boolean {
     const state = this.recordingState
 
-    if (
-      state.kind === 'resolving-target' ||
-      state.kind === 'starting' ||
-      state.kind === 'recording' ||
-      state.kind === 'stopping'
-    ) {
+    if (state.kind === 'starting' || state.kind === 'recording' || state.kind === 'stopping') {
       return state.sessionId === sessionId
     }
 
@@ -620,12 +607,13 @@ export class AudioIpcHandler {
 
   private abortTargetResolution(sessionId: string): void {
     const controller = this.targetResolutionControllers.get(sessionId)
-    if (controller == null) {
-      return
+    if (controller != null) {
+      controller.abort()
+      this.targetResolutionControllers.delete(sessionId)
     }
 
-    controller.abort()
-    this.targetResolutionControllers.delete(sessionId)
+    this.targetResolutionPromises.delete(sessionId)
+    this.targetsBySessionId.delete(sessionId)
   }
 
   /** クリーンアップ */
@@ -638,6 +626,7 @@ export class AudioIpcHandler {
     ipcMain.removeAllListeners('recording:error')
     ipcMain.removeAllListeners('status:cancel')
     this.targetsBySessionId.clear()
+    this.targetResolutionPromises.clear()
     for (const controller of this.targetResolutionControllers.values()) {
       controller.abort()
     }

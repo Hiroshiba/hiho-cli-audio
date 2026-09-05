@@ -1,5 +1,8 @@
 /** 録音結果の表示用出力先 */
-export type RecordingTargetSummary = { kind: 'clipboard' } | { kind: 'herdr'; paneId: string }
+export type RecordingTargetSummary =
+  | { kind: 'pending' }
+  | { kind: 'clipboard' }
+  | { kind: 'herdr'; paneId: string }
 
 /** 状態ウィンドウ表示状態 */
 export type StatusWindowState =
