@@ -9,7 +9,7 @@
 - Windows: `hiho-cli-audio-<version>-setup.exe`
 - macOS: `hiho-cli-audio-<version>.dmg`
 
-Windowsではインストーラーを実行します。macOSではDMGを開き、hiho-cli-audioをアプリケーションフォルダへコピーします。
+Windowsではインストーラーを実行します。インストール時にアプリ本体をダウンロードするため、インターネット接続が必要です。macOSではDMGを開き、hiho-cli-audioをアプリケーションフォルダへコピーします。
 
 開発中の最新版は[`edge`リリース](https://github.com/Hiroshiba/hiho-cli-audio/releases/tag/edge)から入手できます。`main`の更新ごとに置き換わるため、通常は安定版を使用してください。
 

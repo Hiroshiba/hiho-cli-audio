@@ -12,12 +12,17 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+publish:
+  provider: github
+  owner: Hiroshiba
+  repo: hiho-cli-audio
+  vPrefixedTagName: false
 win:
   executableName: hiho-cli-audio
   icon: build/icon.ico
   target:
-    - nsis
-nsis:
+    - nsis-web
+nsisWeb:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
