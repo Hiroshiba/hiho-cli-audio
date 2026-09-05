@@ -103,9 +103,9 @@ jobs:
           RELEASE_NOTES: mainブランチの最新コミットを反映したエッジ版です。
         run: |
           if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
-            gh release edit "${RELEASE_TAG}" --title "${RELEASE_TITLE}" --notes "${RELEASE_NOTES}" --prerelease --latest=false --target "${GITHUB_SHA}"
+            gh release edit "${RELEASE_TAG}" --title "${RELEASE_TITLE}" --notes "${RELEASE_NOTES}" --prerelease=false --latest --target "${GITHUB_SHA}"
             gh release upload "${RELEASE_TAG}" release-assets/* --clobber
             gh api --method PATCH "repos/${GH_REPO}/git/refs/tags/${RELEASE_TAG}" -f sha="${GITHUB_SHA}" -F force=true
           else
-            gh release create "${RELEASE_TAG}" release-assets/* --title "${RELEASE_TITLE}" --notes "${RELEASE_NOTES}" --prerelease --latest=false --target "${GITHUB_SHA}"
+            gh release create "${RELEASE_TAG}" release-assets/* --title "${RELEASE_TITLE}" --notes "${RELEASE_NOTES}" --prerelease=false --latest --target "${GITHUB_SHA}"
           fi
