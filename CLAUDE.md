@@ -152,7 +152,7 @@ APIキーは `config.yaml` に平文保存します。作業中にユーザー�
 - macOS署名は `mac.identity: null` で無効化する
 - 公証は対象外
 
-`.github/workflows/build.yml` は手動実行のリリースワークフローです。指定されたバージョンを `package.json` に反映し、型チェック、ESLint、electron-viteビルド、electron-builderパッケージ作成を実行します。インストーラーを指定したバージョンのGitHub Releaseへアップロードします。
+`.github/workflows/build.yml` は手動実行と `main` ブランチへの push で動くリリースワークフローです。手動実行では指定されたバージョンを `package.json` に反映し、型チェック、ESLint、electron-viteビルド、electron-builderパッケージ作成を実行して、指定したバージョンのGitHub Releaseへインストーラーをアップロードします。`main` ブランチへの push では `0.0.0-edge` を `package.json` に反映し、`edge` リリースを更新します。
 
 ## プロジェクト構造
 

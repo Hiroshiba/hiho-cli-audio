@@ -1,14 +1,21 @@
 name: Release
 
-run-name: Release ${{ inputs.version }}
+run-name: Release ${{ github.event_name == 'push' && 'edge' || inputs.version }}
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       version:
         description: 'package.jsonとGitHub Releaseに設定するバージョン。例: 1.0.1'
         required: true
         type: string
+
+concurrency:
+  group: ${{ github.event_name == 'push' && 'edge-release' || format('release-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 permissions:
   contents: read
@@ -26,7 +33,7 @@ jobs:
         include:
           - os: windows-latest
             label: Windows
-            build_args: --win --config.nsisWeb.appPackageUrl=https://github.com/${{ github.repository }}/releases/download/${{ inputs.version }}
+            build_args: --win --config.nsisWeb.appPackageUrl=https://github.com/${{ github.repository }}/releases/download/${{ github.event_name == 'push' && 'edge' || inputs.version }}
             artifact_name: hiho-cli-audio-windows
             artifact_path: |
               dist/nsis-web/*.exe
@@ -60,7 +67,9 @@ jobs:
         run: pnpm install
 
       - name: <Setup> package.jsonのバージョン更新
-        run: pnpm version "${{ inputs.version }}" --no-git-tag-version
+        env:
+          PACKAGE_VERSION: ${{ github.event_name == 'push' && '0.0.0-edge' || inputs.version }}
+        run: pnpm version "${PACKAGE_VERSION}" --no-git-tag-version
 
       - name: <Check> TypeScript型チェック
         run: pnpm typecheck
@@ -95,7 +104,25 @@ jobs:
           path: release-assets
           merge-multiple: true
 
+      - name: <Release> エッジ版GitHub Releaseへのデプロイ
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: edge
+          RELEASE_TITLE: edge
+          RELEASE_NOTES: mainブランチの最新コミットを反映したエッジ版です。
+        run: |
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" --title "${RELEASE_TITLE}" --notes "${RELEASE_NOTES}" --prerelease=false --latest --target "${GITHUB_SHA}"
+            gh release upload "${RELEASE_TAG}" release-assets/* --clobber
+            gh api --method PATCH "repos/${GH_REPO}/git/refs/tags/${RELEASE_TAG}" -f sha="${GITHUB_SHA}" -F force=true
+          else
+            gh release create "${RELEASE_TAG}" release-assets/* --title "${RELEASE_TITLE}" --notes "${RELEASE_NOTES}" --prerelease=false --latest --target "${GITHUB_SHA}"
+          fi
+
       - name: <Release> GitHub Releaseへのデプロイ
+        if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
