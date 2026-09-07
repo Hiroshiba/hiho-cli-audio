@@ -193,6 +193,10 @@ onUnmounted(() => {
   margin: 0;
 }
 
+:global(html) {
+  color-scheme: light dark;
+}
+
 :global(body) {
   overflow: hidden;
   color: #2b2620;
@@ -405,5 +409,87 @@ onUnmounted(() => {
 
 .history-copy-feedback-visible {
   visibility: visible;
+}
+
+@media (prefers-color-scheme: dark) {
+  :global(body) {
+    color: #eee7de;
+    background: #1c1917;
+  }
+
+  .history-window {
+    border-color: #3a332c;
+    background: #26221f;
+  }
+
+  .history-header {
+    border-bottom-color: #3a332c;
+    background: linear-gradient(180deg, #2c2823, #27231f);
+  }
+
+  .history-header-icon {
+    background: #243754;
+  }
+
+  .history-header-icon::after {
+    border-bottom-color: #9bbcf6;
+    border-left-color: #9bbcf6;
+  }
+
+  .history-header h1 {
+    color: #eee7de;
+  }
+
+  .history-message {
+    color: #b6aaa0;
+  }
+
+  .history-item {
+    background: #322c26;
+  }
+
+  .history-item-copied,
+  .history-item-completed:hover,
+  .history-item-completed.history-item-copied:hover {
+    background: #2b405f;
+  }
+
+  .history-item-completed:focus-visible {
+    outline-color: #9bbcf6;
+  }
+
+  .history-item-failed {
+    background: #4a2823;
+    box-shadow: inset 0 0 0 1px rgba(235, 116, 96, 0.26);
+    color: #ff9e8c;
+  }
+
+  .history-time {
+    color: #bdb4aa;
+  }
+
+  .history-item-failed .history-time {
+    color: #e18a7c;
+  }
+
+  .history-preview {
+    color: #f0e9e0;
+  }
+
+  .history-item-failed .history-preview {
+    color: #ff9e8c;
+  }
+
+  .history-item-failed .history-preview::before {
+    background: #b84434;
+  }
+
+  .history-copy-feedback {
+    color: #9bbcf6;
+  }
+
+  .history-copy-feedback::before {
+    background: #4b6fae;
+  }
 }
 </style>
