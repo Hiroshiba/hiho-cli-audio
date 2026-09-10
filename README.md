@@ -94,7 +94,7 @@ macOSでホットキーが反応しない場合は、システム設定でhiho-c
 
 ### Herdrのタイトル設定
 
-[Herdr v0.8.2以降](https://github.com/herdrdev/herdr/releases/tag/v0.8.2)では、Herdr自身の設定で外側のターミナルに表示するタイトルを指定できます。[Herdrの設定](https://herdr.dev/docs/configuration/)にある`~/.config/herdr/config.toml`へ次の設定を追加します。WSL内でHerdrを動かす場合は、WSL側の設定ファイルを編集してください。これはhiho-cli-audioの`config.yaml`とは別のファイルです。
+Herdrは[バージョン0.8.2以降](https://github.com/herdrdev/herdr/releases/tag/v0.8.2)を使用します。Herdrの[設定ファイル](https://herdr.dev/docs/configuration/)である`~/.config/herdr/config.toml`へ次の設定を追加します。WSL内でHerdrを動かす場合は、WSL側の設定ファイルを編集してください。これはhiho-cli-audioの`config.yaml`とは別のファイルです。
 
 ```toml
 [ui]
@@ -102,6 +102,8 @@ window_title = "[HERDR] {hostname}: {workspace}"
 ```
 
 既に`[ui]`セクションがある場合は、`window_title`の行だけを追加します。編集後に`herdr server reload-config`で設定を再読み込みします。
+
+iTerm2とWindows Terminalは、アプリによるタイトル変更を許可し、ウィンドウタイトルへ反映する設定で使用します。
 
 ### macOS
 
@@ -113,7 +115,7 @@ herdr:
     binaryPath: '/absolute/path/to/herdr'
 ```
 
-[iTerm2のプロファイル設定](https://iterm2.com/documentation-preferences-profiles-general.html)で、`Profiles > General > Applications in terminal may change the title`を有効にします。iTerm2を前面にし、ウィンドウタイトルに`[HERDR]`が表示されることを確認してから録音を始めます。前面状態の取得時にSystem Eventsの操作を求められた場合は、hiho-cli-audioに自動化を許可してください。
+iTerm2を前面にし、ウィンドウタイトルに`[HERDR]`が表示されることを確認してから録音を始めます。前面状態の取得時にSystem Eventsの操作を求められた場合は、hiho-cli-audioに自動化を許可してください。
 
 ### Windows
 
@@ -126,12 +128,6 @@ herdr:
     wslUser: '<WSLユーザー名>'
     binaryPath: '<WSL内のHerdr実行ファイルのパス>'
 ```
-
-Windows Terminalでは、次の設定を確認します。
-
-- 使用するWSLプロファイルの[詳細設定](https://learn.microsoft.com/en-us/windows/terminal/customize-settings/profile-advanced)で`suppressApplicationTitle`を`false`にし、アプリによるタイトル変更を許可します。
-- [外観設定](https://learn.microsoft.com/en-us/windows/terminal/customize-settings/appearance)の`showTerminalTitleInTitlebar`を`true`にし、選択中のタブ名をウィンドウタイトルに反映します。これは`settings.json`のルートに置く設定で、既定値のままなら変更は不要です。変更した場合は新しいWindows Terminalのインスタンスを起動します。
-- 手動でタブ名を固定している場合は、対象タブを右クリックし、[「タブ名の変更」](https://learn.microsoft.com/en-us/windows/terminal/customize-settings/actions)の入力欄を空にして解除します。
 
 Windows Terminalを前面にし、ウィンドウタイトルに`[HERDR]`が表示されることを確認してから録音を始めます。
 
