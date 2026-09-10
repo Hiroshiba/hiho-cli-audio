@@ -129,6 +129,8 @@ herdr:
     binaryPath: '<WSL内のHerdr実行ファイルのパス>'
 ```
 
+Ubuntuの[標準プロファイル](https://github.com/ubuntu/wsl-setup/blob/86a561d5149a9d76ec3c9b3ce2745e7ebca5f2ad/wsl/terminal-profile.json#L5)では、アプリによるタイトル変更を抑止する`"suppressApplicationTitle": true`が設定されています。Windows Terminalの`settings.json`で`profiles.list`内の使用するWSLプロファイルに`"suppressApplicationTitle": false`を追加するか、既存の値を変更してください。
+
 Windows Terminalを前面にし、ウィンドウタイトルに`[HERDR]`が表示されることを確認してから録音を始めます。
 
 ### 出力先の決まり方
