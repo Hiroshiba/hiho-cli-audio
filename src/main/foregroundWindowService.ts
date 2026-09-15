@@ -73,7 +73,7 @@ export class MacosHerdrForegroundDetector implements HerdrForegroundDetector {
 
 /** Windowsの前面ウィンドウを判定 */
 export class WindowsHerdrForegroundDetector implements HerdrForegroundDetector {
-  /** 前面ウィンドウがHerdr用Windows Terminalか判定 */
+  /** 前面ウィンドウがWindows上のHerdr用対応端末か判定 */
   async isHerdrForeground(signal: AbortSignal): Promise<boolean> {
     const stdout = await execFileText(
       'powershell.exe',
@@ -81,9 +81,10 @@ export class WindowsHerdrForegroundDetector implements HerdrForegroundDetector {
       signal
     )
     const foregroundWindow = parseForegroundWindow(stdout)
-    const isWindowsTerminal =
+    const isSupportedTerminal =
       foregroundWindow.processName === 'WindowsTerminal' ||
-      foregroundWindow.processName === 'WindowsTerminal.exe'
-    return isWindowsTerminal && foregroundWindow.windowTitle.includes(HERDR_WINDOW_MARKER)
+      foregroundWindow.processName === 'WindowsTerminal.exe' ||
+      foregroundWindow.processName === 'wezterm-gui'
+    return isSupportedTerminal && foregroundWindow.windowTitle.includes(HERDR_WINDOW_MARKER)
   }
 }
