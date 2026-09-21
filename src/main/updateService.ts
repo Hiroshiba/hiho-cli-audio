@@ -11,7 +11,7 @@ interface UpdateClient {
   disableWebInstaller: boolean
   setFeedURL(options: { provider: 'github'; owner: string; repo: string }): void
   checkForUpdates(): Promise<{ readonly downloadPromise?: Promise<string[]> | null } | null>
-  quitAndInstall(): void
+  quitAndInstall(): void | Promise<void>
   on(event: 'update-downloaded', listener: () => void): unknown
   on(event: 'error', listener: (error: Error) => void): unknown
   removeListener(event: 'update-downloaded', listener: () => void): unknown
@@ -38,10 +38,12 @@ export class UpdateService {
   private isChecking = false
   private checkErrorReported = false
   private isDownloaded = false
+  private isRetryBlocked = false
   private isRestartPending = false
   private isRestartPreparationActive = false
   private isStarted = false
   private isStopped = false
+  private reportedInstallErrors = new WeakSet<Error>()
 
   constructor(dependencies: UpdateServiceDependencies) {
     this.dependencies = dependencies
@@ -90,7 +92,7 @@ export class UpdateService {
   }
 
   private readonly handleUpdateDownloaded = (): void => {
-    if (this.isStopped) {
+    if (this.isStopped || this.isRetryBlocked) {
       return
     }
 
@@ -100,7 +102,12 @@ export class UpdateService {
   }
 
   private readonly handleError = (error: Error): void => {
-    if (this.isStopped) {
+    if (this.isStopped || this.reportedInstallErrors.has(error)) {
+      return
+    }
+
+    if (this.isRestartPreparationActive) {
+      this.failInstall(error)
       return
     }
 
@@ -109,16 +116,16 @@ export class UpdateService {
       this.checkErrorReported = true
     }
 
-    if (this.isRestartPreparationActive) {
-      this.dependencies.cancelRestartPreparation()
-      this.isRestartPreparationActive = false
-      this.isRestartPending = false
-      this.showRestartAction()
+    if (isNonRetryableUpdateError(error)) {
+      this.isRetryBlocked = true
+    }
+    if (this.isRetryBlocked || (this.isChecking && this.isDownloaded)) {
+      this.clearDownloadedUpdate()
     }
   }
 
   private async checkForUpdates(): Promise<void> {
-    if (this.isChecking || this.isDownloaded || this.isStopped) {
+    if (this.isChecking || this.isDownloaded || this.isRetryBlocked || this.isStopped) {
       return
     }
 
@@ -133,6 +140,10 @@ export class UpdateService {
         await result.downloadPromise
       }
     } catch (error) {
+      if (isNonRetryableUpdateError(error)) {
+        this.isRetryBlocked = true
+        this.clearDownloadedUpdate()
+      }
       if (!this.checkErrorReported) {
         this.dependencies.loggerService.error(
           '自動更新の確認またはダウンロードに失敗しました',
@@ -150,6 +161,12 @@ export class UpdateService {
       () => this.requestRestart(),
       this.isRestartPending
     )
+  }
+
+  private clearDownloadedUpdate(): void {
+    this.isDownloaded = false
+    this.isRestartPending = false
+    this.dependencies.trayService.setUpdateRestartAction(null, false)
   }
 
   private requestRestart(): void {
@@ -173,22 +190,47 @@ export class UpdateService {
   }
 
   private async installUpdate(): Promise<void> {
+    this.reportedInstallErrors = new WeakSet<Error>()
+    this.isRestartPreparationActive = true
     try {
-      this.isRestartPreparationActive = true
       await this.dependencies.prepareForRestart()
       if (!this.isRestartPending || this.isStopped) {
         return
       }
-      this.dependencies.updater.quitAndInstall()
     } catch (error) {
       if (this.isRestartPreparationActive) {
         this.dependencies.cancelRestartPreparation()
         this.isRestartPreparationActive = false
+        this.isRestartPending = false
+        this.showRestartAction()
+        this.dependencies.loggerService.error('更新の適用を開始できませんでした', error)
       }
-      this.isRestartPending = false
-      this.showRestartAction()
-      this.dependencies.loggerService.error('更新の適用を開始できませんでした', error)
+      return
     }
+
+    try {
+      await this.dependencies.updater.quitAndInstall()
+    } catch (error) {
+      if (this.isRestartPreparationActive) {
+        this.failInstall(error)
+      }
+    }
+  }
+
+  private failInstall(error: unknown): void {
+    if (error instanceof Error) {
+      this.reportedInstallErrors.add(error)
+    }
+    if (this.isChecking) {
+      this.checkErrorReported = true
+    }
+    if (isNonRetryableUpdateError(error)) {
+      this.isRetryBlocked = true
+    }
+    this.dependencies.cancelRestartPreparation()
+    this.isRestartPreparationActive = false
+    this.clearDownloadedUpdate()
+    this.dependencies.loggerService.error('更新の適用に失敗しました', error)
   }
 
   private clearRestartTimer(): void {
@@ -197,4 +239,14 @@ export class UpdateService {
       this.restartTimer = null
     }
   }
+}
+
+function isNonRetryableUpdateError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    (error.code === 'ERR_CHECKSUM_MISMATCH' ||
+      error.code === 'ERR_UPDATER_INVALID_SIGNATURE' ||
+      error.code === 'ERR_UPDATER_ZIP_FILE_NOT_FOUND')
+  )
 }

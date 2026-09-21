@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { z } from 'zod'
 import { writeFileAtomic } from './atomicFile'
 import { LoggerService } from './loggerService'
+import { PendingWriteQueue } from './pendingWriteQueue'
 
 const WindowBoundsSchema = z
   .object({
@@ -33,7 +34,7 @@ export class StateService {
   private static instance: StateService | null = null
   private readonly loggerService: LoggerService
   private readonly stateFilePath: string
-  private writeQueue: Promise<void> = Promise.resolve()
+  private readonly writeQueue = new PendingWriteQueue()
 
   private constructor(userDataPath: string) {
     this.loggerService = LoggerService.getInstance()
@@ -58,13 +59,13 @@ export class StateService {
 
   /** 状態ファイルを読み込む */
   async loadState(): Promise<AppState> {
-    await this.writeQueue
+    await this.writeQueue.waitForWrites()
     return await this.readStateFile()
   }
 
   /** 状態ファイルを書き込む */
   async saveState(state: AppState): Promise<void> {
-    await this.enqueueWrite(async () => await this.writeStateFile(state))
+    await this.writeQueue.enqueue(async () => await this.writeStateFile(state))
   }
 
   /** ウィンドウ位置とサイズを読み込む */
@@ -81,7 +82,7 @@ export class StateService {
 
   /** ウィンドウ位置とサイズを保存する */
   async saveWindowBounds(windowName: string, bounds: WindowBounds): Promise<void> {
-    await this.enqueueWrite(async () => {
+    await this.writeQueue.enqueue(async () => {
       const state = await this.readStateFile()
       await this.writeStateFile({
         ...state,
@@ -100,7 +101,7 @@ export class StateService {
 
   /** 保留中のウィンドウ状態保存を待つ */
   async flushPendingWrites(): Promise<void> {
-    await this.writeQueue
+    await this.writeQueue.flush()
   }
 
   private async readStateFile(): Promise<AppState> {
@@ -134,15 +135,6 @@ export class StateService {
   private async writeStateFile(state: AppState): Promise<void> {
     const validatedState = AppStateSchema.parse(state)
     await writeFileAtomic(this.stateFilePath, JSON.stringify(validatedState, null, 2))
-  }
-
-  private enqueueWrite<T>(operation: () => Promise<T>): Promise<T> {
-    const queuedOperation = this.writeQueue.then(operation, operation)
-    this.writeQueue = queuedOperation.then(
-      () => undefined,
-      () => undefined
-    )
-    return queuedOperation
   }
 }
 

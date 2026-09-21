@@ -61,7 +61,7 @@ export class TrayService {
   }
 
   /** 更新の再起動操作をトレイへ反映する */
-  setUpdateRestartAction(action: () => void, isWaiting: boolean): void {
+  setUpdateRestartAction(action: (() => void) | null, isWaiting: boolean): void {
     if (this.tray == null) {
       throw new Error('トレイ常駐サービスが初期化されていません')
     }
