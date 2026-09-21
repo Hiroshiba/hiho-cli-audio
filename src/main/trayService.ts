@@ -11,6 +11,8 @@ export class TrayService {
   private static instance: TrayService | null = null
   private readonly loggerService: LoggerService
   private tray: Tray | null = null
+  private updateRestartAction: (() => void) | null = null
+  private isWaitingForRestart = false
 
   private constructor() {
     this.loggerService = LoggerService.getInstance()
@@ -54,7 +56,19 @@ export class TrayService {
 
     this.tray.destroy()
     this.tray = null
+    this.updateRestartAction = null
     this.loggerService.info('トレイ常駐サービスをクリーンアップしました')
+  }
+
+  /** 更新の再起動操作をトレイへ反映する */
+  setUpdateRestartAction(action: () => void, isWaiting: boolean): void {
+    if (this.tray == null) {
+      throw new Error('トレイ常駐サービスが初期化されていません')
+    }
+
+    this.updateRestartAction = action
+    this.isWaitingForRestart = isWaiting
+    this.tray.setContextMenu(this.createContextMenu())
   }
 
   private createTrayIcon(): Electron.NativeImage {
@@ -104,20 +118,32 @@ export class TrayService {
   }
 
   private createContextMenu(): Menu {
-    return Menu.buildFromTemplate([
+    const template: Electron.MenuItemConstructorOptions[] = [
       {
         label: '文字起こし履歴を開く',
         click: () => {
           this.openHistoryWindow()
         }
-      },
-      {
-        label: '終了',
-        click: () => {
-          this.quitApplication()
-        }
       }
-    ])
+    ]
+
+    if (this.updateRestartAction != null) {
+      const action = this.updateRestartAction
+      template.push({
+        label: this.isWaitingForRestart ? '処理完了後に更新して再起動' : '更新して再起動',
+        enabled: !this.isWaitingForRestart,
+        click: () => action()
+      })
+    }
+
+    template.push({
+      label: '終了',
+      click: () => {
+        this.quitApplication()
+      }
+    })
+
+    return Menu.buildFromTemplate(template)
   }
 
   private openHistoryWindow(): void {

@@ -185,6 +185,16 @@ export class AudioIpcHandler {
     this.startRecording()
   }
 
+  /** 録音の開始または完了待ちがあるかを返す */
+  hasActiveRecording(): boolean {
+    const state = this.recordingState
+    if (state.kind === 'not-ready') {
+      return state.pendingStart
+    }
+
+    return state.kind !== 'idle' || this.targetResolutionPromises.size > 0
+  }
+
   private handleStatusCancel(): void {
     this.cancelRecording()
     this.transcriptionJobService.cancel()

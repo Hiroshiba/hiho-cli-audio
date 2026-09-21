@@ -136,6 +136,11 @@ export class HistoryService {
     ipcMain.removeHandler('history:copy')
   }
 
+  /** 保留中の履歴保存を待つ */
+  async flushPendingWrites(): Promise<void> {
+    await this.writeQueue
+  }
+
   private setupIpcHandlers(): void {
     ipcMain.handle('history:list', this.handleListHistory.bind(this))
     ipcMain.handle('history:copy', this.handleCopyHistoryItem.bind(this))

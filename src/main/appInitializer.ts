@@ -1,3 +1,5 @@
+import { app } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import { ConfigService } from './configService'
 import { AudioIpcHandler } from './audioIpcHandler'
 import { GeminiService } from './geminiService'
@@ -7,6 +9,9 @@ import { ErrorDialogService } from './errorDialogService'
 import { LoggerService } from './loggerService'
 import { TrayService } from './trayService'
 import { HistoryService } from './historyService'
+import { StateService } from './stateService'
+import { TranscriptionJobService } from './transcriptionJobService'
+import { UpdateService } from './updateService'
 import { createRecordingTargetResolver } from './recordingTargetResolver'
 import { type AppError, createError } from '../shared/types/error'
 
@@ -31,6 +36,8 @@ export class AppInitializer {
   private readonly loggerService: LoggerService
   private readonly trayService: TrayService
   private readonly historyService: HistoryService
+  private readonly updateService: UpdateService
+  private isPreparingForUpdate = false
 
   constructor() {
     this.loggerService = LoggerService.getInstance()
@@ -40,6 +47,27 @@ export class AppInitializer {
     this.audioIpcHandler = new AudioIpcHandler()
     this.errorDialogService = ErrorDialogService.getInstance()
     this.trayService = TrayService.getInstance()
+    this.updateService = new UpdateService({
+      updater: autoUpdater,
+      trayService: this.trayService,
+      loggerService: this.loggerService,
+      isPackaged: app.isPackaged,
+      platform: process.platform,
+      architecture: process.arch,
+      canRestart: () =>
+        !this.audioIpcHandler.hasActiveRecording() &&
+        !TranscriptionJobService.getInstance().hasActiveJobs(),
+      prepareForRestart: async () => {
+        WindowService.getExistingInstance().prepareForUpdate()
+        this.isPreparingForUpdate = true
+        await this.historyService.flushPendingWrites()
+        await StateService.getInstance().flushPendingWrites()
+      },
+      cancelRestartPreparation: () => {
+        WindowService.getExistingInstance().cancelUpdatePreparation()
+        this.isPreparingForUpdate = false
+      }
+    })
   }
 
   /** アプリケーションの初期化 */
@@ -54,6 +82,7 @@ export class AppInitializer {
       await this.initializeWindowService()
       this.initializeTrayService()
       await this.initializeHotkeyService()
+      this.updateService.start()
       console.log('アプリケーションの初期化が完了しました')
       this.loggerService.info('アプリケーションの初期化が完了しました')
     } catch (error) {
@@ -165,6 +194,11 @@ export class AppInitializer {
       const config = this.configService.getConfig()
 
       const recordingToggleCallback = (): void => {
+        if (this.isPreparingForUpdate) {
+          this.loggerService.info('更新の再起動中は録音操作を受け付けません')
+          return
+        }
+
         console.log('録音トグルが実行されました')
         this.loggerService.info('録音トグルが実行されました')
         this.audioIpcHandler.toggleRecording()
@@ -194,6 +228,13 @@ export class AppInitializer {
     this.loggerService.info('アプリケーションのクリーンアップを開始します')
 
     try {
+      this.updateService.cleanup()
+    } catch (error) {
+      console.error('自動更新サービスのクリーンアップエラー:', error)
+      this.loggerService.error('自動更新サービスのクリーンアップに失敗しました', error)
+    }
+
+    try {
       const hotkeyService = HotkeyService.getExistingInstance()
       hotkeyService.cleanup()
     } catch (error) {
@@ -209,6 +250,7 @@ export class AppInitializer {
     }
 
     try {
+      await this.historyService.flushPendingWrites()
       this.historyService.cleanup()
     } catch (error) {
       console.error('履歴サービスのクリーンアップエラー:', error)
@@ -225,6 +267,7 @@ export class AppInitializer {
     try {
       const windowService = WindowService.getExistingInstance()
       windowService.cleanup()
+      await StateService.getInstance().flushPendingWrites()
     } catch (error) {
       console.error('ウィンドウサービスのクリーンアップエラー:', error)
       this.loggerService.error('ウィンドウサービスのクリーンアップに失敗しました', error)

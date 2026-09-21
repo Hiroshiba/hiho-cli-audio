@@ -4,6 +4,7 @@ import { AppInitializer } from './appInitializer'
 
 let appInitializer: AppInitializer | null = null
 let cleanupPromise: Promise<void> | null = null
+let isCleanupComplete = false
 
 function cleanupApplication(): Promise<void> {
   if (appInitializer == null) {
@@ -47,6 +48,24 @@ app.on('window-all-closed', () => {
 })
 
 // アプリケーション終了時に各サービスをクリーンアップする
-app.on('before-quit', async () => {
-  await cleanupApplication()
+app.on('before-quit', (event) => {
+  if (isCleanupComplete) {
+    return
+  }
+
+  event.preventDefault()
+  void cleanupApplication()
+    .then(() => {
+      if (!isCleanupComplete) {
+        isCleanupComplete = true
+        app.quit()
+      }
+    })
+    .catch((error) => {
+      console.error('アプリケーションのクリーンアップに失敗しました:', error)
+      if (!isCleanupComplete) {
+        isCleanupComplete = true
+        app.quit()
+      }
+    })
 })

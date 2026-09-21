@@ -98,6 +98,11 @@ export class StateService {
     return this.stateFilePath
   }
 
+  /** 保留中のウィンドウ状態保存を待つ */
+  async flushPendingWrites(): Promise<void> {
+    await this.writeQueue
+  }
+
   private async readStateFile(): Promise<AppState> {
     try {
       const stateData = await fs.readFile(this.stateFilePath, 'utf-8')

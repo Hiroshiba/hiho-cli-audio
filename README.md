@@ -14,7 +14,7 @@ Windowsではいずれかのインストーラーを実行します。Webイン�
 
 初回導入前に[中央の端末設定手順](https://github.com/Hiroshiba/oreore-codesigner/blob/63b1b7ded84cb7809fd5386b00df8706af3dc8b8/docs/device-setup.md)に従い、配布元と公開証明書を確認してください。自己署名はAppleの公証の代替ではなく、macOSのGatekeeperやWindowsのSmartScreenによる警告は残り得ます。OS全体の保護設定は無効にしないでください。
 
-従来の未署名`edge`版から最初の署名済み版へ移るときは、署名済み版を手動で再インストールしてください。署名済み版の公開だけではアプリ内更新は有効にならず、現時点では以降の更新も手動でインストールします。
+従来の未署名`edge`版から最初の署名済み版へ移るときは、署名済み版を手動で再インストールしてください。以後、署名済みのパッケージ版は公開されたLatest Releaseを起動時と1時間ごとに確認し、更新を自動でダウンロードします。ダウンロードが完了すると常駐メニューに「更新して再起動」が現れます。選択時に録音や文字起こしが進行中なら、その完了後に再起動します。終了時の自動適用や、操作なしの再起動は行いません。更新に失敗した場合は現行版を使い続けます。Webインストーラーは自動更新に使用しません。
 
 `main`の更新ではReleaseを自動公開しません。署名済み成果物を中央の署名ワークフローで既存のdraft Releaseへアップロードし、動作確認が終わってから公開します。
 
@@ -165,6 +165,8 @@ pnpm build:mac
 Windowsのローカルビルドは通常NSISだけを作成します。ローカルビルドは配布用の署名済み成果物ではありません。配布には[中央の署名ワークフロー](https://github.com/Hiroshiba/oreore-codesigner/blob/63b1b7ded84cb7809fd5386b00df8706af3dc8b8/.github/workflows/sign-release.yml)を使用します。
 
 公開するバージョンは`package.json`のSemVerで指定し、`pnpm-lock.yaml`とともにコミットしてタグを付けます。タグのReleaseをdraftで先に作成し、中央ワークフローを既定ブランチから`repository=Hiroshiba/hiho-cli-audio`と対象`tag`で実行します。中央は同一ソースSHAからmacOS x64のZIP、Windows x64の通常NSISとNSIS Webを署名し、既存Releaseの成果物だけを更新します。Releaseのdraft状態は変更しません。成果物と実機動作を確認してからdraftを公開してください。
+
+次の版は現行版より大きいSemVerにし、更新metadataとその参照先の通常NSISまたはZIP、blockmap、サイズ、SHA-512が一致することを公開前に確認してください。アプリID、実行ファイル名、インストーラーの識別情報、署名証明書を継続して使用します。証明書の更新が必要な場合は、公開前に旧版からの更新をWindowsとmacOSの実機で確認してください。公開するReleaseはLatest Releaseとして参照され、draftやprereleaseは更新対象になりません。
 
 中央のGitHub Appには対象リポジトリをSelected repositoriesとして許可し、Contentsの読み書き権限を設定します。中央リポジトリのrepository variableにApp IDを`SIGNING_APP_ID`、repository secretに秘密鍵を`SIGNING_APP_PRIVATE_KEY`として登録します。macOSのP12とパスワードは中央の`macos-signing` environment secretの`MACOS_CERTIFICATE_P12_BASE64`と`MACOS_CERTIFICATE_PASSWORD`、WindowsのPFXとパスワードは`windows-signing` environment secretの`WINDOWS_CERTIFICATE_PFX_BASE64`と`WINDOWS_CERTIFICATE_PASSWORD`へ登録し、両environmentに承認者を設定します。このリポジトリへ署名鍵や公開用トークンを登録しません。設定と失敗時の再実行は中央の[初期設定](https://github.com/Hiroshiba/oreore-codesigner/blob/63b1b7ded84cb7809fd5386b00df8706af3dc8b8/docs/github-setup.md)と[運用手順](https://github.com/Hiroshiba/oreore-codesigner/blob/63b1b7ded84cb7809fd5386b00df8706af3dc8b8/docs/operations.md)を参照してください。
 
