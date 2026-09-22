@@ -157,6 +157,11 @@ export class TranscriptionJobService {
     this.publishStatus()
   }
 
+  /** 実行中の文字起こしジョブがあるかを返す */
+  hasActiveJobs(): boolean {
+    return this.jobsById.size > 0
+  }
+
   /** サービスをクリーンアップ */
   cleanup(): void {
     this.isCleaningUp = true

@@ -6,6 +6,7 @@ import type { HistoryItem } from '../shared/types/history'
 import { writeFileAtomic } from './atomicFile'
 import { ConfigService } from './configService'
 import { LoggerService } from './loggerService'
+import { PendingWriteQueue } from './pendingWriteQueue'
 import { WindowService } from './windowService'
 
 const FAILED_PREVIEW = '文字起こし失敗'
@@ -58,7 +59,7 @@ export class HistoryService {
   private readonly configService: ConfigService
   private readonly historyFilePath: string
   private readonly loggerService: LoggerService
-  private writeQueue: Promise<void> = Promise.resolve()
+  private readonly writeQueue = new PendingWriteQueue()
 
   private constructor(userDataPath: string) {
     this.configService = ConfigService.getInstance()
@@ -88,7 +89,7 @@ export class HistoryService {
       audioPath: input.audioPath
     }
 
-    return await this.enqueueWrite(async () => await this.appendItem(item))
+    return await this.writeQueue.enqueue(async () => await this.appendItem(item))
   }
 
   /** 失敗した文字起こしを履歴に記録 */
@@ -103,19 +104,19 @@ export class HistoryService {
       audioPath: input.audioPath
     }
 
-    return await this.enqueueWrite(async () => await this.appendItem(item))
+    return await this.writeQueue.enqueue(async () => await this.appendItem(item))
   }
 
   /** 履歴一覧を取得 */
   async listItems(): Promise<readonly HistoryItem[]> {
-    await this.writeQueue
+    await this.writeQueue.waitForWrites()
     const historyFile = await this.loadHistoryFile()
     return this.sortNewestFirst(historyFile.items)
   }
 
   /** 成功履歴の本文をクリップボードへコピー */
   async copyTranscript(itemId: string): Promise<boolean> {
-    await this.writeQueue
+    await this.writeQueue.waitForWrites()
     const historyFile = await this.loadHistoryFile()
     const item = historyFile.items.find((historyItem) => historyItem.id === itemId)
 
@@ -134,6 +135,11 @@ export class HistoryService {
   cleanup(): void {
     ipcMain.removeHandler('history:list')
     ipcMain.removeHandler('history:copy')
+  }
+
+  /** 保留中の履歴保存を待つ */
+  async flushPendingWrites(): Promise<void> {
+    await this.writeQueue.flush()
   }
 
   private setupIpcHandlers(): void {
@@ -171,15 +177,6 @@ export class HistoryService {
     })
 
     return item
-  }
-
-  private enqueueWrite<T>(operation: () => Promise<T>): Promise<T> {
-    const queuedOperation = this.writeQueue.then(operation, operation)
-    this.writeQueue = queuedOperation.then(
-      () => undefined,
-      () => undefined
-    )
-    return queuedOperation
   }
 
   private async loadHistoryFile(): Promise<HistoryFile> {

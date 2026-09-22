@@ -125,6 +125,16 @@ export class WindowService {
     }
   }
 
+  /** 更新に伴うウィンドウ終了を許可する */
+  prepareForUpdate(): void {
+    this.isQuitting = true
+  }
+
+  /** 更新開始の失敗後に通常のウィンドウ動作へ戻す */
+  cancelUpdatePreparation(): void {
+    this.isQuitting = false
+  }
+
   private createStatusWindow(): BrowserWindow {
     const statusWindow = new BrowserWindow({
       ...this.getStatusWindowBounds(),

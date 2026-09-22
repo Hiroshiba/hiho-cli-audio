@@ -12,30 +12,28 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
-publish:
-  provider: github
-  owner: Hiroshiba
-  repo: hiho-cli-audio
-  vPrefixedTagName: false
 win:
   executableName: hiho-cli-audio
   icon: build/icon.ico
   target:
-    - nsis-web
+    - nsis
+nsis:
+  artifactName: ${name}-${version}-windows-${arch}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
 nsisWeb:
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: ${name}-${version}-windows-${arch}-web-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   icon: build/icon.icns
-  identity: null
   target:
-    - dmg
+    - zip
+  artifactName: ${name}-${version}-macos-${arch}.${ext}
   extendInfo:
     NSMicrophoneUsageDescription: 'このアプリケーションは音声録音のためにマイクアクセスを必要とします。'
   notarize: false
-dmg:
-  artifactName: ${name}-${version}.${ext}
 npmRebuild: false
