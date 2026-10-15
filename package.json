@@ -1,6 +1,6 @@
 {
   "name": "hiho-cli-audio",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Gemini音声認識APIを利用したElectronアプリケーション",
   "main": "./out/main/index.js",
   "author": "Hiroshiba",
