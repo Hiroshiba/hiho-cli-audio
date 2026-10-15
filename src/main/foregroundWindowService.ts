@@ -64,8 +64,7 @@ export class MacosHerdrForegroundDetector implements HerdrForegroundDetector {
       signal
     )
     const foregroundWindow = parseForegroundWindow(stdout)
-    const isSupportedTerminal =
-      foregroundWindow.processName === 'iTerm2' || foregroundWindow.processName === 'wezterm-gui'
+    const isSupportedTerminal = foregroundWindow.processName === 'wezterm-gui'
     return isSupportedTerminal && foregroundWindow.windowTitle.includes(HERDR_WINDOW_MARKER)
   }
 }

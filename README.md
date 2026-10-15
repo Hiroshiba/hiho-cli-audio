@@ -100,7 +100,7 @@ window_title = "[HERDR] {hostname}: {workspace}"
 
 既に`[ui]`セクションがある場合は、`window_title`の行だけを追加します。編集後に`herdr server reload-config`で設定を再読み込みします。
 
-iTerm2、Windows Terminal、WezTermは、アプリによるタイトル変更を許可し、ウィンドウタイトルへ反映する設定で使用します。
+Windows Terminal、WezTermは、アプリによるタイトル変更を許可し、ウィンドウタイトルへ反映する設定で使用します。
 
 ### macOS
 
@@ -112,7 +112,7 @@ herdr:
     binaryPath: '/absolute/path/to/herdr'
 ```
 
-iTerm2またはWezTermを前面にし、ウィンドウタイトルに`[HERDR]`が表示されることを確認してから録音を始めます。前面状態の取得時にSystem Eventsの操作を求められた場合は、hiho-cli-audioに自動化を許可してください。
+WezTermを前面にし、ウィンドウタイトルに`[HERDR]`が表示されることを確認してから録音を始めます。前面状態の取得時にSystem Eventsの操作を求められた場合は、hiho-cli-audioに自動化を許可してください。
 
 ### Windows
 
