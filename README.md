@@ -112,7 +112,7 @@ herdr:
     binaryPath: '/absolute/path/to/herdr'
 ```
 
-iTerm2を前面にし、ウィンドウタイトルに`[HERDR]`が表示されることを確認してから録音を始めます。前面状態の取得時にSystem Eventsの操作を求められた場合は、hiho-cli-audioに自動化を許可してください。
+iTerm2またはWezTermを前面にし、ウィンドウタイトルに`[HERDR]`が表示されることを確認してから録音を始めます。前面状態の取得時にSystem Eventsの操作を求められた場合は、hiho-cli-audioに自動化を許可してください。
 
 ### Windows
 

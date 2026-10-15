@@ -56,7 +56,7 @@ function parseForegroundWindow(stdout: string): { processName: string; windowTit
 
 /** macOSの前面ウィンドウを判定 */
 export class MacosHerdrForegroundDetector implements HerdrForegroundDetector {
-  /** 前面ウィンドウがHerdr用iTerm2か判定 */
+  /** 前面ウィンドウがmacOS上のHerdr用対応端末か判定 */
   async isHerdrForeground(signal: AbortSignal): Promise<boolean> {
     const stdout = await execFileText(
       '/usr/bin/osascript',
@@ -64,10 +64,9 @@ export class MacosHerdrForegroundDetector implements HerdrForegroundDetector {
       signal
     )
     const foregroundWindow = parseForegroundWindow(stdout)
-    return (
-      foregroundWindow.processName === 'iTerm2' &&
-      foregroundWindow.windowTitle.includes(HERDR_WINDOW_MARKER)
-    )
+    const isSupportedTerminal =
+      foregroundWindow.processName === 'iTerm2' || foregroundWindow.processName === 'wezterm-gui'
+    return isSupportedTerminal && foregroundWindow.windowTitle.includes(HERDR_WINDOW_MARKER)
   }
 }
 
