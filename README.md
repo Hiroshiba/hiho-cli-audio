@@ -164,6 +164,8 @@ pnpm build:mac
 
 Windowsのローカルビルドは通常NSISだけを作成します。ローカルビルドは配布用の署名済み成果物ではありません。配布には[中央の署名ワークフロー](https://github.com/Hiroshiba/oreore-codesigner/blob/d62b5defa895c96f9f8091f5f44172921d9e0404/.github/workflows/sign-release.yml)を使用します。
 
+macOSの自己署名では有効なTeam IDがないため、Electron Frameworkの読み込みに必要な`com.apple.security.cs.disable-library-validation`を`build/entitlements.mac.plist`で有効にします。
+
 公開するバージョンは`package.json`のSemVerで指定し、`pnpm-lock.yaml`との整合を確認してください。版変更を`main`へ反映し、そのコミットにタグを付けてからタグのReleaseをdraftで作成します。中央ワークフローは既定ブランチから`repository=Hiroshiba/hiho-cli-audio`と対象`tag`で実行します。中央は同一ソースSHAからmacOS x64のZIP、Windows x64の通常NSISとNSIS Webを署名し、既存Releaseの成果物だけを更新します。Releaseのdraft状態は変更しません。成果物と実機動作を確認してからdraftを公開してください。
 
 次の版は現行版より大きいSemVerにし、更新metadataとその参照先の通常NSISまたはZIP、blockmap、サイズ、SHA-512が一致することを公開前に確認してください。アプリID、実行ファイル名、インストーラーの識別情報、署名証明書を継続して使用します。証明書の更新が必要な場合は、公開前に旧版からの更新をWindowsとmacOSの実機で確認してください。公開するReleaseはLatest Releaseとして参照され、draftやprereleaseは更新対象になりません。
