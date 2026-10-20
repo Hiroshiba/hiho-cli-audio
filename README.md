@@ -161,6 +161,8 @@ pnpm build:win
 pnpm build:mac
 ```
 
+macOSで録音するアプリ本体とHelperには、`build/entitlements.mac.plist`のAudio Input entitlementを付与します。実行時に使わない`docs`は、署名検証時のファイル名正規化の不一致を避けるためパッケージに含めません。
+
 Windowsのローカルビルドは通常NSISだけを作成します。ローカルビルドは配布用の署名済み成果物ではありません。
 
 公開するバージョンは`package.json`のSemVerで指定し、`pnpm-lock.yaml`との整合を確認してください。版変更を`main`へ反映し、そのコミットにタグを付けてください。`main`の更新ではReleaseを自動公開しません。
