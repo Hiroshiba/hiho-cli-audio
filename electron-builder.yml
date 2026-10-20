@@ -32,6 +32,7 @@ mac:
   icon: build/icon.icns
   target:
     - zip
+    - dmg
   artifactName: ${name}-${version}-macos-${arch}.${ext}
   extendInfo:
     NSMicrophoneUsageDescription: 'このアプリケーションは音声録音のためにマイクアクセスを必要とします。'
