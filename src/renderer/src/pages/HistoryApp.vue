@@ -23,6 +23,7 @@ const copiedHistoryItemId = ref<string | null>(null)
 const actionError = ref<{ id: string; message: string } | null>(null)
 let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null
 let removeHistoryUpdatedListener: (() => void) | null = null
+let historyLoadGeneration = 0
 
 const historyItems = computed((): readonly HistoryListItem[] => {
   if (loadState.value.kind !== 'loaded') {
@@ -37,14 +38,24 @@ const isEmpty = computed(
 )
 
 async function loadHistoryItems(): Promise<void> {
+  const requestGeneration = ++historyLoadGeneration
+
   try {
     const items = await window.api.history.list()
+    if (requestGeneration !== historyLoadGeneration) {
+      return
+    }
+
     loadState.value = {
       kind: 'loaded',
       items
     }
   } catch (error) {
     console.error('履歴一覧の読み込みに失敗しました', error)
+    if (requestGeneration !== historyLoadGeneration) {
+      return
+    }
+
     loadState.value = {
       kind: 'failed'
     }
