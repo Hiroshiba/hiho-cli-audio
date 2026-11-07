@@ -7,6 +7,14 @@ export interface RecordingSessionPayload {
   sessionId: string
 }
 
+/** 録音入力の観測状態 */
+export type RecordingInputState = 'no-input' | 'input-detected' | 'unavailable'
+
+/** 録音入力状態の通知 */
+export type RecordingInputStatePayload =
+  | (RecordingSessionPayload & { state: Exclude<RecordingInputState, 'unavailable'> })
+  | (RecordingSessionPayload & { state: 'unavailable'; details: string })
+
 /** 録音開始オプション */
 export interface RecordingStartOptions extends RecordingSessionPayload {
   /** 自動停止までの秒数 */

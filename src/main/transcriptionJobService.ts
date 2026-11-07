@@ -39,6 +39,7 @@ type RecordingState =
       sessionId: string
       recordingStartedAt: string
       target: RecordingTargetSummary
+      inputWarning: boolean
     }
 
 type TranscriptionJobState = {
@@ -103,7 +104,8 @@ export class TranscriptionJobService {
       kind: 'recording',
       sessionId,
       recordingStartedAt: new Date().toISOString(),
-      target: { kind: 'pending' }
+      target: { kind: 'pending' },
+      inputWarning: false
     }
     this.clearNotificationTimer()
     this.notification = null
@@ -118,6 +120,25 @@ export class TranscriptionJobService {
 
     this.recordingState.target = createRecordingTargetSummary(target)
     this.publishStatus()
+  }
+
+  /** 録音入力の警告状態を更新 */
+  updateRecordingInputWarning(sessionId: string, state: 'no-input' | 'input-detected'): boolean {
+    if (this.recordingState.kind !== 'recording' || this.recordingState.sessionId !== sessionId) {
+      return false
+    }
+
+    if (state === 'no-input' && this.recordingState.inputWarning) {
+      return false
+    }
+
+    if (state === 'input-detected' && !this.recordingState.inputWarning) {
+      return false
+    }
+
+    this.recordingState.inputWarning = state === 'no-input'
+    this.publishStatus()
+    return true
   }
 
   /** 録音停止状態を通知 */
@@ -577,7 +598,8 @@ export class TranscriptionJobService {
         kind: 'recording',
         recordingStartedAt: this.recordingState.recordingStartedAt,
         processingJobCount,
-        target: this.recordingState.target
+        target: this.recordingState.target,
+        inputWarning: this.recordingState.inputWarning
       }
     }
 

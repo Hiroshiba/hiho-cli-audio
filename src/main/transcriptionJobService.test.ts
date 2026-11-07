@@ -8,6 +8,7 @@ import { mock, test } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import ffmpegStatic from 'ffmpeg-static'
 import * as yaml from 'js-yaml'
+import { z } from 'zod'
 
 let profilePath = ''
 const clipboardWrites: string[] = []
@@ -91,6 +92,34 @@ test('保存済み音声の再認識と履歴上限の整合性', async (t) => {
   const historyFilePath = join(profilePath, 'history.json')
 
   try {
+    await t.test('録音入力警告は現行セッションの状態遷移だけを反映する', () => {
+      const sessionId = 'recording-input-warning'
+      jobs.startRecording(sessionId)
+      const statusHandler = ipcHandlers.get('status:get')
+      assert.ok(statusHandler != null)
+      const getInputWarning = (): boolean =>
+        z.object({ kind: z.literal('recording'), inputWarning: z.boolean() }).parse(statusHandler())
+          .inputWarning
+
+      assert.equal(getInputWarning(), false)
+      assert.equal(jobs.updateRecordingInputWarning(sessionId, 'no-input'), true)
+      assert.equal(getInputWarning(), true)
+      assert.equal(jobs.updateRecordingInputWarning(sessionId, 'no-input'), false)
+      assert.equal(jobs.updateRecordingInputWarning(sessionId, 'input-detected'), true)
+      assert.equal(getInputWarning(), false)
+      assert.equal(jobs.updateRecordingInputWarning(sessionId, 'input-detected'), false)
+
+      jobs.stopRecording(sessionId)
+      jobs.startRecording('recording-next-input-session')
+      assert.equal(jobs.updateRecordingInputWarning(sessionId, 'no-input'), false)
+      assert.equal(getInputWarning(), false)
+      assert.equal(
+        jobs.updateRecordingInputWarning('recording-next-input-session', 'no-input'),
+        true
+      )
+      jobs.stopRecording('recording-next-input-session')
+    })
+
     await t.test('WAV保存後の失敗を同じ履歴と音声で再認識してコピーする', async () => {
       transcribe = async () => {
         throw new Error('認識失敗')

@@ -1,10 +1,12 @@
 import type {
   RecordingData,
   RecordingErrorPayload,
+  RecordingInputStatePayload,
   RecordingStartOptions,
   RecordingStopReason,
   RecordingStoppedPayload
 } from '../../shared/types/recording'
+import { AudioInputMonitor } from './audioInputMonitor'
 
 const STOPPED_SESSION_ID_LIMIT = 20
 
@@ -23,15 +25,19 @@ export class AudioRecorder {
   private stopReason: RecordingStopReason | null = null
   private stoppedSessionIds: string[] = []
   private cancelledSessionIds: string[] = []
+  private audioInputMonitor: AudioInputMonitor | null = null
   private onStateChange: (state: RecordingState) => void
   private onError: (payload: RecordingErrorPayload) => void
+  private onInputStateChange: (payload: RecordingInputStatePayload) => void
 
   constructor(
     onStateChange: (state: RecordingState) => void,
-    onError: (payload: RecordingErrorPayload) => void
+    onError: (payload: RecordingErrorPayload) => void,
+    onInputStateChange: (payload: RecordingInputStatePayload) => void
   ) {
     this.onStateChange = onStateChange
     this.onError = onError
+    this.onInputStateChange = onInputStateChange
   }
 
   /** 録音開始 */
@@ -65,23 +71,63 @@ export class AudioRecorder {
       }
 
       this.audioChunks = []
-      this.mediaRecorder = new MediaRecorder(recordingStream, {
+      const mediaRecorder = new MediaRecorder(recordingStream, {
         mimeType: 'audio/webm'
       })
+      this.mediaRecorder = mediaRecorder
 
-      this.mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+      mediaRecorder.ondataavailable = (event) => {
+        if (this.currentSessionId === options.sessionId && event.data.size > 0) {
           this.audioChunks.push(event.data)
         }
       }
 
-      this.mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = () => {
         recordingStream.getTracks().forEach((track) => track.stop())
+        if (this.currentSessionId !== options.sessionId) {
+          return
+        }
+
         this.finishRecording(options.sessionId)
       }
 
-      this.mediaRecorder.start(1000)
+      this.mediaRecorder.onerror = (event) => {
+        if (this.currentSessionId !== options.sessionId) {
+          return
+        }
+
+        mediaRecorder.ondataavailable = null
+        mediaRecorder.onstop = null
+        mediaRecorder.onerror = null
+        recordingStream.getTracks().forEach((track) => track.stop())
+        this.rememberCancelledSession(options.sessionId)
+        this.rememberStoppedSession(options.sessionId)
+        this.resetRecording()
+        this.onError({
+          sessionId: options.sessionId,
+          message: '録音を継続できませんでした',
+          details: formatError(event.error)
+        })
+      }
+
+      mediaRecorder.start(1000)
       this.startTime = Date.now()
+      const inputMonitor = AudioInputMonitor.create(
+        recordingStream,
+        options.sessionId,
+        performance.now(),
+        (payload) => {
+          if (
+            payload.state === 'unavailable' ||
+            (this.currentSessionId === payload.sessionId && this.stopReason == null)
+          ) {
+            this.onInputStateChange(payload)
+          }
+        }
+      )
+      if (inputMonitor.kind === 'active') {
+        this.audioInputMonitor = inputMonitor.monitor
+      }
       this.onStateChange('recording')
 
       this.startDurationTimer(options.sessionId, options.autoStopSeconds)
@@ -285,11 +331,24 @@ export class AudioRecorder {
 
   /** 録音データをクリア */
   private resetRecording(): void {
+    const sessionId = this.currentSessionId
+    const audioInputMonitor = this.audioInputMonitor
     this.audioChunks = []
     this.mediaRecorder = null
+    this.audioInputMonitor = null
     this.currentSessionId = null
     this.stopReason = null
     this.onStateChange('idle')
+
+    if (audioInputMonitor != null && sessionId != null) {
+      void audioInputMonitor.stop().catch((error: unknown) => {
+        this.onInputStateChange({
+          sessionId,
+          state: 'unavailable',
+          details: formatError(error)
+        })
+      })
+    }
   }
 
   private rememberStoppedSession(sessionId: string): void {

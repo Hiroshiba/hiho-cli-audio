@@ -7,6 +7,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { AudioRecorder, type RecordingState } from '../audioRecorder'
 import type {
   RecordingErrorPayload,
+  RecordingInputStatePayload,
   RecordingSessionPayload,
   RecordingStartOptions,
   RecordingStopOptions,
@@ -22,6 +23,10 @@ const onStateChange = (newState: RecordingState): void => {
 
 const sendRecordingError = (payload: RecordingErrorPayload): void => {
   window.electron.ipcRenderer.send('recording:error', payload)
+}
+
+const sendRecordingInputState = (payload: RecordingInputStatePayload): void => {
+  window.electron.ipcRenderer.send('recording:input-state', payload)
 }
 
 const handleRecordingStart = async (
@@ -106,7 +111,7 @@ const handleRecordingStop = (_event: unknown, options: RecordingStopOptions): vo
 }
 
 onMounted(() => {
-  recorder.value = new AudioRecorder(onStateChange, sendRecordingError)
+  recorder.value = new AudioRecorder(onStateChange, sendRecordingError, sendRecordingInputState)
 
   window.electron.ipcRenderer.on('recording:start', handleRecordingStart)
   window.electron.ipcRenderer.on('recording:stop', handleRecordingStop)

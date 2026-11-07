@@ -11,7 +11,7 @@
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
     "test:update": "node --import tsx src/main/updateService.test.ts",
-    "test:audio": "node --experimental-test-module-mocks --import tsx src/main/transcriptionJobService.test.ts",
+    "test:audio": "node --experimental-test-module-mocks --import tsx src/main/transcriptionJobService.test.ts && node --import tsx src/renderer/src/audioRecorder.test.ts && node --import tsx src/main/audioInputMonitor.test.ts",
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
     "build": "pnpm run typecheck && electron-vite build",
