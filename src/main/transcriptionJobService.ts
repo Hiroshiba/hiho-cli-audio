@@ -1,12 +1,22 @@
 import { app, clipboard, ipcMain } from 'electron'
 import { randomUUID } from 'node:crypto'
+import { extname } from 'node:path'
+import { z } from 'zod'
 import { AudioProcessor } from './audioProcessor'
 import { ConfigService } from './configService'
 import { GeminiService } from './geminiService'
 import { HistoryService } from './historyService'
 import { LoggerService } from './loggerService'
-import type { ProcessedAudioData, RecordingData, RecordingTarget, StatusWindowState } from './types'
+import type {
+  AudioProcessingFailure,
+  ProcessedAudioData,
+  RecordingData,
+  RecordingTarget,
+  Result,
+  StatusWindowState
+} from './types'
 import type { RecordingTargetSummary } from '../shared/types/status'
+import type { HistoryItem } from '../shared/types/history'
 import { WindowService } from './windowService'
 
 const CLIPBOARD_COMPLETED_MESSAGE = 'クリップボードにコピーしました'
@@ -34,12 +44,27 @@ type RecordingState =
 type TranscriptionJobState = {
   controller: AbortController
   cancelled: boolean
+  committed: boolean
 }
+
+type TranscriptionJobInput =
+  | {
+      kind: 'recording'
+      recordingData: RecordingData
+      targetPromise: Promise<RecordingTarget>
+      historyId: string
+      createdAt: string
+    }
+  | { kind: 'retry'; item: HistoryItem }
 
 /** 文字起こしジョブ管理サービス */
 export class TranscriptionJobService {
   private static instance: TranscriptionJobService | null = null
   private readonly jobsById = new Map<string, TranscriptionJobState>()
+  private readonly activeJobPromises = new Set<Promise<void>>()
+  private readonly pendingRetryStarts = new Set<Promise<void>>()
+  private readonly cancelledRetryHistoryIds = new Set<string>()
+  private readonly retryHistoryIds = new Set<string>()
   private readonly audioProcessor: AudioProcessor
   private readonly configService: ConfigService
   private readonly geminiService: GeminiService
@@ -132,7 +157,8 @@ export class TranscriptionJobService {
     const createdAt = new Date().toISOString()
     this.jobsById.set(jobId, {
       controller: new AbortController(),
-      cancelled: false
+      cancelled: false,
+      committed: false
     })
     this.publishStatus()
 
@@ -141,14 +167,52 @@ export class TranscriptionJobService {
       dataSize: recordingData.webmData.length
     })
 
-    void this.runJob(jobId, createdAt, recordingData, targetPromise)
+    this.trackJob(
+      this.runJob(jobId, {
+        kind: 'recording',
+        recordingData,
+        targetPromise,
+        historyId: jobId,
+        createdAt
+      })
+    )
+  }
+
+  /** 失敗履歴から再認識を開始する */
+  async retryHistoryItem(historyId: string): Promise<void> {
+    if (this.isCleaningUp) {
+      throw new Error('終了処理中は再認識を開始できません')
+    }
+    if (this.retryHistoryIds.has(historyId)) {
+      throw new Error(`履歴項目は既に再認識中です: ${historyId}`)
+    }
+
+    this.retryHistoryIds.add(historyId)
+    const startPromise = this.startRetryJob(historyId)
+    this.pendingRetryStarts.add(startPromise)
+    try {
+      await startPromise
+    } finally {
+      this.pendingRetryStarts.delete(startPromise)
+    }
+  }
+
+  /** 実行中ジョブの終了と音声保護の解放を待つ */
+  async waitForJobs(): Promise<void> {
+    await Promise.allSettled([...this.pendingRetryStarts])
+    await Promise.all([...this.activeJobPromises])
   }
 
   /** 録音と実行中の文字起こしをキャンセル */
   cancel(): void {
+    for (const historyId of this.retryHistoryIds) {
+      this.cancelledRetryHistoryIds.add(historyId)
+    }
     for (const job of this.jobsById.values()) {
-      job.cancelled = true
-      job.controller.abort()
+      if (!job.committed) {
+        job.cancelled = true
+        job.controller.abort()
+      }
     }
 
     this.clearNotificationTimer()
@@ -159,19 +223,25 @@ export class TranscriptionJobService {
 
   /** 実行中の文字起こしジョブがあるかを返す */
   hasActiveJobs(): boolean {
-    return this.jobsById.size > 0
+    return this.jobsById.size > 0 || this.pendingRetryStarts.size > 0
   }
 
   /** サービスをクリーンアップ */
   cleanup(): void {
     this.isCleaningUp = true
+    for (const historyId of this.retryHistoryIds) {
+      this.cancelledRetryHistoryIds.add(historyId)
+    }
     for (const job of this.jobsById.values()) {
-      job.cancelled = true
-      job.controller.abort()
+      if (!job.committed) {
+        job.cancelled = true
+        job.controller.abort()
+      }
     }
 
     this.clearNotificationTimer()
     ipcMain.removeHandler('status:get')
+    ipcMain.removeHandler('history:retry')
     this.notification = null
     this.recordingState = { kind: 'inactive' }
     this.publishStatus()
@@ -179,38 +249,76 @@ export class TranscriptionJobService {
 
   private setupIpcHandlers(): void {
     ipcMain.handle('status:get', this.handleGetStatus.bind(this))
+    ipcMain.handle('history:retry', this.handleRetryHistoryItem.bind(this))
+  }
+
+  private async handleRetryHistoryItem(
+    _event: Electron.IpcMainInvokeEvent,
+    historyId: unknown
+  ): Promise<void> {
+    const validatedHistoryId = z.string().min(1).parse(historyId)
+    await this.retryHistoryItem(validatedHistoryId)
+  }
+
+  private async startRetryJob(historyId: string): Promise<void> {
+    let item: HistoryItem
+    try {
+      item = await this.historyService.beginRetry(historyId)
+    } catch (error) {
+      this.retryHistoryIds.delete(historyId)
+      this.cancelledRetryHistoryIds.delete(historyId)
+      throw error
+    }
+
+    if (this.isCleaningUp || this.cancelledRetryHistoryIds.has(historyId)) {
+      await this.historyService.finishRetry(historyId, null)
+      this.retryHistoryIds.delete(historyId)
+      this.cancelledRetryHistoryIds.delete(historyId)
+      return
+    }
+
+    const jobId = randomUUID()
+    this.jobsById.set(jobId, {
+      controller: new AbortController(),
+      cancelled: false,
+      committed: false
+    })
+    this.publishStatus()
+    this.trackJob(this.runJob(jobId, { kind: 'retry', item }))
   }
 
   private handleGetStatus(): StatusWindowState {
     return this.createStatusWindowState()
   }
 
-  private async runJob(
-    jobId: string,
-    createdAt: string,
-    recordingData: RecordingData,
-    targetPromise: Promise<RecordingTarget>
-  ): Promise<void> {
+  private async runJob(jobId: string, input: TranscriptionJobInput): Promise<void> {
     let processedAudio: ProcessedAudioData | null = null
+    let failedAudioPath: string | null = input.kind === 'retry' ? input.item.audioPath : null
     const job = this.jobsById.get(jobId)
     if (job == null) {
       throw new Error(`文字起こしジョブが見つかりません: ${jobId}`)
     }
 
     try {
-      const target = await targetPromise
+      const target: RecordingTarget =
+        input.kind === 'recording' ? await input.targetPromise : { kind: 'clipboard' }
       this.throwIfCancelled(jobId)
-      const processResult = await this.audioProcessor.processAudioData(
-        recordingData,
-        jobId,
-        job.controller.signal
-      )
-      this.throwIfCancelled(jobId)
+      const processResult =
+        input.kind === 'recording'
+          ? await this.audioProcessor.processAudioData(
+              input.recordingData,
+              jobId,
+              job.controller.signal
+            )
+          : await this.prepareRetryAudio(input.item, jobId, job.controller.signal)
       if (!processResult.success) {
-        throw new Error(processResult.error)
+        failedAudioPath = processResult.error.savedWebmPath
+        throw new Error(processResult.error.message)
       }
 
       processedAudio = processResult.data
+      failedAudioPath = processedAudio.wavFilePath
+      this.throwIfCancelled(jobId)
       const config = this.configService.getConfig()
       const geminiClient = this.geminiService.getClient()
       const transcriptionResult = await geminiClient.transcribe(
@@ -230,7 +338,15 @@ export class TranscriptionJobService {
         job.controller.signal
       )
       this.throwIfCancelled(jobId)
-
+      await this.historyService.recordCompletedItem({
+        id: input.kind === 'recording' ? input.historyId : input.item.id,
+        createdAt: input.kind === 'recording' ? input.createdAt : input.item.createdAt,
+        completedAt: new Date().toISOString(),
+        transcript: transcriptionResult.text,
+        audioPath: processedAudio.wavFilePath,
+        sourceWebmPath: processedAudio.sourceWebmPath
+      })
+      job.committed = true
       this.loggerService.infoWithDetails('文字起こしジョブが完了しました', {
         jobId,
         audioId: processedAudio.id,
@@ -238,16 +354,11 @@ export class TranscriptionJobService {
         textLength: transcriptionResult.text.length
       })
 
-      await this.recordCompletedHistoryItem(
-        processedAudio,
-        createdAt,
-        transcriptionResult.text,
-        job.controller.signal
-      )
-      this.throwIfCancelled(jobId)
-
       this.completeJob(jobId, createTranscriptionNotification(output))
     } catch (error) {
+      if (job.committed) {
+        throw error
+      }
       if (this.isCancelled(jobId)) {
         this.loggerService.infoWithDetails('キャンセルされた文字起こしジョブを終了しました', {
           jobId,
@@ -261,14 +372,22 @@ export class TranscriptionJobService {
         error: this.formatError(error)
       })
 
-      try {
-        await this.recordFailedHistoryItem(jobId, createdAt, processedAudio, job.controller.signal)
-      } catch (historyError) {
-        if (this.isCancelled(jobId)) {
-          return
+      if (input.kind === 'recording') {
+        this.throwIfCancelled(jobId)
+        try {
+          await this.historyService.recordFailedItem({
+            id: input.historyId,
+            createdAt: input.createdAt,
+            completedAt: new Date().toISOString(),
+            audioPath: failedAudioPath,
+            sourceWebmPath: processedAudio?.sourceWebmPath ?? null
+          })
+        } catch (historyError) {
+          if (!this.isCancelled(jobId)) {
+            this.notifyFailure(TRANSCRIPTION_FAILED_MESSAGE)
+          }
+          throw historyError
         }
-
-        throw historyError
       }
       if (this.isCancelled(jobId)) {
         return
@@ -281,8 +400,43 @@ export class TranscriptionJobService {
         durationMilliseconds: FAILED_NOTIFICATION_MILLISECONDS
       })
     } finally {
-      this.finishJob(jobId)
+      try {
+        if (input.kind === 'retry') {
+          try {
+            await this.historyService.finishRetry(
+              input.item.id,
+              processedAudio?.sourceWebmPath == null ? null : processedAudio.wavFilePath
+            )
+          } finally {
+            this.retryHistoryIds.delete(input.item.id)
+            this.cancelledRetryHistoryIds.delete(input.item.id)
+          }
+        }
+      } finally {
+        this.finishJob(jobId)
+      }
     }
+  }
+
+  private async prepareRetryAudio(
+    item: HistoryItem,
+    jobId: string,
+    signal: AbortSignal
+  ): Promise<Result<ProcessedAudioData, AudioProcessingFailure>> {
+    if (item.audioPath == null) {
+      throw new Error(`再認識する音声がありません: ${item.id}`)
+    }
+    if (extname(item.audioPath) === '.webm') {
+      return await this.audioProcessor.processSavedWebm(item.audioPath, jobId, signal)
+    }
+    if (extname(item.audioPath) === '.wav') {
+      return {
+        success: true,
+        data: { id: jobId, wavFilePath: item.audioPath, sourceWebmPath: null }
+      }
+    }
+
+    throw new Error(`再認識できない音声形式です: ${item.audioPath}`)
   }
 
   private async outputTranscription(
@@ -319,76 +473,17 @@ export class TranscriptionJobService {
     }
   }
 
-  private async recordCompletedHistoryItem(
-    processedAudio: ProcessedAudioData,
-    createdAt: string,
-    transcript: string,
-    signal: AbortSignal
-  ): Promise<void> {
-    try {
-      throwIfAborted(signal)
-      await this.historyService.recordCompletedItem({
-        id: processedAudio.id,
-        createdAt,
-        completedAt: new Date().toISOString(),
-        transcript,
-        audioPath: processedAudio.wavFilePath
-      })
-      throwIfAborted(signal)
-    } catch (error) {
-      if (signal.aborted) {
-        throw error
-      }
-
-      this.loggerService.error('成功履歴の保存に失敗しました', {
-        historyId: processedAudio.id,
-        error: this.formatError(error)
-      })
-    }
-  }
-
-  private async recordFailedHistoryItem(
-    jobId: string,
-    createdAt: string,
-    processedAudio: ProcessedAudioData | null,
-    signal: AbortSignal
-  ): Promise<void> {
-    const historyId = processedAudio == null ? jobId : processedAudio.id
-    const audioPath = processedAudio == null ? null : processedAudio.wavFilePath
-
-    try {
-      throwIfAborted(signal)
-      await this.historyService.recordFailedItem({
-        id: historyId,
-        createdAt,
-        completedAt: new Date().toISOString(),
-        audioPath
-      })
-      throwIfAborted(signal)
-    } catch (error) {
-      if (signal.aborted) {
-        throw error
-      }
-
-      this.loggerService.error('失敗履歴の保存に失敗しました', {
-        historyId,
-        error: this.formatError(error)
-      })
-    }
-  }
-
   private completeJob(jobId: string, notification: TranscriptionJobNotification): void {
     const job = this.jobsById.get(jobId)
     if (job == null) {
       throw new Error(`未登録の文字起こしジョブが完了しました: ${jobId}`)
     }
 
-    if (job.cancelled || job.controller.signal.aborted) {
+    if ((job.cancelled || job.controller.signal.aborted) && !job.committed) {
       return
     }
 
     if (this.isCleaningUp) {
-      this.jobsById.delete(jobId)
       this.loggerService.infoWithDetails('終了処理中の文字起こしジョブ完了通知を破棄しました', {
         jobId,
         notificationKind: notification.kind
@@ -396,8 +491,17 @@ export class TranscriptionJobService {
       return
     }
 
-    this.jobsById.delete(jobId)
     this.setNotification(notification)
+  }
+
+  private trackJob(jobPromise: Promise<void>): void {
+    const settled = jobPromise.catch((error: unknown) => {
+      this.loggerService.error('文字起こしジョブの終了処理に失敗しました', error)
+    })
+    this.activeJobPromises.add(settled)
+    void settled.then(() => {
+      this.activeJobPromises.delete(settled)
+    })
   }
 
   private finishJob(jobId: string): void {

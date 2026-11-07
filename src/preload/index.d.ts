@@ -1,11 +1,13 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
-import type { HistoryItem } from '../shared/types/history'
+import type { HistoryListItem } from '../shared/types/history'
 import type { StatusWindowState } from '../shared/types/status'
 
 interface API {
   history: {
-    list: () => Promise<readonly HistoryItem[]>
+    list: () => Promise<readonly HistoryListItem[]>
     copy: (id: string) => Promise<boolean>
+    retry: (id: string) => Promise<void>
+    reveal: (id: string) => Promise<boolean>
     onUpdated: (callback: () => void) => () => void
   }
   status: {

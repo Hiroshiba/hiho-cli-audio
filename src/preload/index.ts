@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { z } from 'zod'
-import type { HistoryItem } from '../shared/types/history'
+import type { HistoryListItem } from '../shared/types/history'
 import type { StatusWindowState } from '../shared/types/status'
 
 z.config({ jitless: true })
@@ -53,10 +53,27 @@ const StatusWindowStateSchema = z.discriminatedUnion('kind', [
     .strict()
 ])
 
+const HistoryListItemSchema = z
+  .object({
+    id: z.string().min(1),
+    createdAt: z.string().min(1),
+    completedAt: z.string().min(1),
+    status: z.enum(['completed', 'failed']),
+    transcript: z.string(),
+    preview: z.string(),
+    audioPath: z.string().min(1).nullable(),
+    audioAvailable: z.boolean(),
+    retrying: z.boolean()
+  })
+  .strict()
+
 // Custom APIs for renderer
 const api = {
   history: {
-    list: async (): Promise<readonly HistoryItem[]> => await ipcRenderer.invoke('history:list'),
+    list: async (): Promise<readonly HistoryListItem[]> => {
+      const items: unknown = await ipcRenderer.invoke('history:list')
+      return z.array(HistoryListItemSchema).parse(items)
+    },
     copy: async (id: string): Promise<boolean> => {
       const copied = await ipcRenderer.invoke('history:copy', id)
       if (typeof copied !== 'boolean') {
@@ -64,6 +81,13 @@ const api = {
       }
 
       return copied
+    },
+    retry: async (id: string): Promise<void> => {
+      await ipcRenderer.invoke('history:retry', id)
+    },
+    reveal: async (id: string): Promise<boolean> => {
+      const revealed: unknown = await ipcRenderer.invoke('history:reveal', id)
+      return z.boolean().parse(revealed)
     },
     onUpdated: (callback: () => void): (() => void) => {
       const listener = (): void => {

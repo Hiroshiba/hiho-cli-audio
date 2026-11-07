@@ -2,18 +2,16 @@ import { spawn } from 'node:child_process'
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import ffmpegStatic from 'ffmpeg-static'
-import { ProcessedAudioData, RecordingData, Result } from './types'
+import { AudioProcessingFailure, ProcessedAudioData, RecordingData, Result } from './types'
 import { LoggerService } from './loggerService'
 
 /** 音声処理クラス */
 export class AudioProcessor {
   private readonly loggerService = LoggerService.getInstance()
   private readonly audioDir: string
-  private readonly tempDir: string
 
   constructor(userDataDir: string) {
     this.audioDir = join(userDataDir, 'audio')
-    this.tempDir = join(userDataDir, 'tmp')
   }
 
   /** WebM形式音声データをリサンプリングして16kHz、モノラル、16bit WAVファイルに変換 */
@@ -21,50 +19,72 @@ export class AudioProcessor {
     recordingData: RecordingData,
     audioId: string,
     signal: AbortSignal
-  ): Promise<Result<ProcessedAudioData, string>> {
-    const tempInputPath = join(this.tempDir, `${audioId}.webm`)
-    const outputPath = join(this.audioDir, `${audioId}.wav`)
+  ): Promise<Result<ProcessedAudioData, AudioProcessingFailure>> {
+    const inputPath = join(this.audioDir, `${audioId}.webm`)
+    let savedWebmPath: string | null = null
 
     try {
       throwIfAborted(signal)
-      await fs.mkdir(this.tempDir, { recursive: true })
-      throwIfAborted(signal)
       await fs.mkdir(this.audioDir, { recursive: true })
       throwIfAborted(signal)
-      await fs.writeFile(tempInputPath, recordingData.webmData, { signal })
+      await fs.writeFile(inputPath, recordingData.webmData, { signal })
+      savedWebmPath = inputPath
       throwIfAborted(signal)
-
-      const success = await this.resampleWithFFmpeg(tempInputPath, outputPath, signal)
-      throwIfAborted(signal)
-      if (!success) {
-        this.loggerService.error('FFmpegリサンプリングに失敗しました', {
-          inputPath: tempInputPath,
-          outputPath
-        })
-        await this.removeTemporaryFile(outputPath, '変換失敗後のWAVファイル削除に失敗しました')
-        await this.removeTemporaryFile(tempInputPath, '一時WebMファイルの削除に失敗しました')
-        return { success: false, error: 'FFmpegリサンプリングに失敗しました' }
-      }
-
-      await this.removeTemporaryFile(tempInputPath, '一時WebMファイルの削除に失敗しました')
-      throwIfAborted(signal)
-      return {
-        success: true,
-        data: {
-          id: audioId,
-          wavFilePath: outputPath
-        }
-      }
+      return await this.processSavedWebm(inputPath, audioId, signal)
     } catch (error) {
-      await this.removeTemporaryFile(outputPath, '変換途中のWAVファイル削除に失敗しました')
-      await this.removeTemporaryFile(tempInputPath, '一時WebMファイルの削除に失敗しました')
-
       if (signal.aborted) {
         throw error
       }
 
       this.loggerService.error('音声処理に失敗しました', error)
-      return { success: false, error: `音声処理エラー: ${error}` }
+      return {
+        success: false,
+        error: { message: `音声処理エラー: ${error}`, savedWebmPath }
+      }
+    }
+  }
+
+  /** 保存済みWebMをWAVへ変換する */
+  async processSavedWebm(
+    inputPath: string,
+    audioId: string,
+    signal: AbortSignal
+  ): Promise<Result<ProcessedAudioData, AudioProcessingFailure>> {
+    const outputPath = join(this.audioDir, `${audioId}.wav`)
+
+    try {
+      throwIfAborted(signal)
+      await fs.mkdir(this.audioDir, { recursive: true })
+      throwIfAborted(signal)
+      const success = await this.resampleWithFFmpeg(inputPath, outputPath, signal)
+      throwIfAborted(signal)
+      if (!success) {
+        this.loggerService.error('FFmpegリサンプリングに失敗しました', {
+          inputPath,
+          outputPath
+        })
+        await this.removeTemporaryFile(outputPath, '変換失敗後のWAVファイル削除に失敗しました')
+        return {
+          success: false,
+          error: { message: 'FFmpegリサンプリングに失敗しました', savedWebmPath: inputPath }
+        }
+      }
+
+      return {
+        success: true,
+        data: { id: audioId, wavFilePath: outputPath, sourceWebmPath: inputPath }
+      }
+    } catch (error) {
+      await this.removeTemporaryFile(outputPath, '変換途中のWAVファイル削除に失敗しました')
+      if (signal.aborted) {
+        throw error
+      }
+
+      this.loggerService.error('音声処理に失敗しました', error)
+      return {
+        success: false,
+        error: { message: `音声処理エラー: ${error}`, savedWebmPath: inputPath }
+      }
     }
   }
 

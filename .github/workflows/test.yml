@@ -42,6 +42,9 @@ jobs:
       - name: <Test> ESLintの実行
         run: pnpm lint
 
+      - name: <Test> 音声履歴と再認識
+        run: pnpm run test:audio
+
       - name: <Test> アプリケーションのビルド
         run: pnpm run build
 

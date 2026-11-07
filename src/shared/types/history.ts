@@ -15,6 +15,14 @@ export interface HistoryItem {
   transcript: string
   /** 履歴表示用プレビュー */
   preview: string
-  /** 紐づくWAV音声ログのパス */
+  /** 紐づく音声ログのパス */
   audioPath: string | null
+}
+
+/** 履歴画面に表示する項目 */
+export interface HistoryListItem extends HistoryItem {
+  /** 音声ログを利用できるか */
+  audioAvailable: boolean
+  /** 再認識中か */
+  retrying: boolean
 }
