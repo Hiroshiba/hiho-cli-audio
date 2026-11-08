@@ -244,6 +244,7 @@ export class AppInitializer {
 
     try {
       this.audioIpcHandler.cleanup()
+      await TranscriptionJobService.getInstance().waitForJobs()
     } catch (error) {
       console.error('音声IPCハンドラーのクリーンアップエラー:', error)
       this.loggerService.error('音声IPCハンドラーのクリーンアップに失敗しました', error)

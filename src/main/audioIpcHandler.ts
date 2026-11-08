@@ -9,6 +9,7 @@ import { WindowService } from './windowService'
 import type { RecordingData, RecordingTarget } from './types'
 import type {
   RecordingErrorPayload,
+  RecordingInputStatePayload,
   RecordingSessionPayload,
   RecordingStartOptions,
   RecordingStopOptions,
@@ -30,6 +31,15 @@ const RecordingErrorPayloadSchema = RecordingSessionPayloadSchema.extend({
   message: z.string().min(1),
   details: z.string().min(1)
 }).strict()
+
+const RecordingInputStatePayloadSchema = z.discriminatedUnion('state', [
+  RecordingSessionPayloadSchema.extend({ state: z.literal('no-input') }).strict(),
+  RecordingSessionPayloadSchema.extend({ state: z.literal('input-detected') }).strict(),
+  RecordingSessionPayloadSchema.extend({
+    state: z.literal('unavailable'),
+    details: z.string().min(1)
+  }).strict()
+])
 
 const RecordingStoppedPayloadSchema = RecordingSessionPayloadSchema.extend({
   reason: z.enum(['requested', 'auto-stop', 'cancelled'])
@@ -83,6 +93,7 @@ export class AudioIpcHandler {
     ipcMain.on('recording:stopped', this.handleRecordingStopped.bind(this))
     ipcMain.on('recording:data', this.handleRecordingData.bind(this))
     ipcMain.on('recording:error', this.handleRecordingError.bind(this))
+    ipcMain.on('recording:input-state', this.handleRecordingInputState.bind(this))
     ipcMain.on('status:cancel', this.handleStatusCancel.bind(this))
   }
 
@@ -417,6 +428,34 @@ export class AudioIpcHandler {
     this.loggerService.error('録音処理に失敗しました', recordingErrorPayload)
   }
 
+  private handleRecordingInputState(_event: Electron.IpcMainEvent, payload: unknown): void {
+    const inputState: RecordingInputStatePayload = RecordingInputStatePayloadSchema.parse(payload)
+    if (inputState.state === 'unavailable') {
+      this.loggerService.warnWithDetails('録音入力を確認できませんでした', inputState)
+      return
+    }
+
+    const state = this.recordingState
+    if (state.kind !== 'recording' || state.sessionId !== inputState.sessionId) {
+      this.loggerService.warnWithDetails('想定外の録音入力状態通知を無視しました', {
+        inputState,
+        state
+      })
+      return
+    }
+
+    if (
+      !this.transcriptionJobService.updateRecordingInputWarning(
+        inputState.sessionId,
+        inputState.state
+      )
+    ) {
+      this.loggerService.warnWithDetails('録音入力状態の遷移が一致しない通知を無視しました', {
+        inputState
+      })
+    }
+  }
+
   private startRecordingWithTargetResolution(): void {
     const resolver = this.getRecordingTargetResolver()
     const sessionId = randomUUID()
@@ -634,6 +673,7 @@ export class AudioIpcHandler {
     ipcMain.removeAllListeners('recording:stopped')
     ipcMain.removeAllListeners('recording:data')
     ipcMain.removeAllListeners('recording:error')
+    ipcMain.removeAllListeners('recording:input-state')
     ipcMain.removeAllListeners('status:cancel')
     this.targetsBySessionId.clear()
     this.targetResolutionPromises.clear()

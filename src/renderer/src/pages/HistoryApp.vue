@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import type { HistoryItem } from '../../../shared/types/history'
+import type { HistoryListItem } from '../../../shared/types/history'
 
 type HistoryLoadState =
   | {
@@ -8,7 +8,7 @@ type HistoryLoadState =
     }
   | {
       kind: 'loaded'
-      items: readonly HistoryItem[]
+      items: readonly HistoryListItem[]
     }
   | {
       kind: 'failed'
@@ -20,10 +20,12 @@ const COPIED_FEEDBACK_MILLISECONDS = 1600
 
 const loadState = ref<HistoryLoadState>({ kind: 'loading' })
 const copiedHistoryItemId = ref<string | null>(null)
+const actionError = ref<{ id: string; message: string } | null>(null)
 let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null
 let removeHistoryUpdatedListener: (() => void) | null = null
+let historyLoadGeneration = 0
 
-const historyItems = computed((): readonly HistoryItem[] => {
+const historyItems = computed((): readonly HistoryListItem[] => {
   if (loadState.value.kind !== 'loaded') {
     return []
   }
@@ -36,21 +38,31 @@ const isEmpty = computed(
 )
 
 async function loadHistoryItems(): Promise<void> {
+  const requestGeneration = ++historyLoadGeneration
+
   try {
     const items = await window.api.history.list()
+    if (requestGeneration !== historyLoadGeneration) {
+      return
+    }
+
     loadState.value = {
       kind: 'loaded',
       items
     }
   } catch (error) {
     console.error('履歴一覧の読み込みに失敗しました', error)
+    if (requestGeneration !== historyLoadGeneration) {
+      return
+    }
+
     loadState.value = {
       kind: 'failed'
     }
   }
 }
 
-async function handleCompletedItemClick(item: HistoryItem): Promise<void> {
+async function handleCompletedItemClick(item: HistoryListItem): Promise<void> {
   if (item.status !== 'completed') {
     throw new Error(`コピー対象ではない履歴項目です: ${item.id}`)
   }
@@ -64,6 +76,32 @@ async function handleCompletedItemClick(item: HistoryItem): Promise<void> {
     showCopyFeedback(item.id)
   } catch (error) {
     console.error('履歴項目のコピーに失敗しました', error)
+  }
+}
+
+async function handleRetryClick(item: HistoryListItem): Promise<void> {
+  actionError.value = null
+  try {
+    await window.api.history.retry(item.id)
+    await loadHistoryItems()
+  } catch (error) {
+    console.error('履歴項目の再認識を開始できませんでした', error)
+    actionError.value = { id: item.id, message: '再認識を開始できませんでした' }
+    await loadHistoryItems()
+  }
+}
+
+async function handleRevealClick(item: HistoryListItem): Promise<void> {
+  actionError.value = null
+  try {
+    const revealed = await window.api.history.reveal(item.id)
+    if (!revealed) {
+      actionError.value = { id: item.id, message: '音声ファイルが見つかりません' }
+      await loadHistoryItems()
+    }
+  } catch (error) {
+    console.error('音声ファイルの保存場所を開けませんでした', error)
+    actionError.value = { id: item.id, message: '保存場所を開けませんでした' }
   }
 }
 
@@ -153,32 +191,72 @@ onUnmounted(() => {
 
     <ul v-else class="history-list" aria-label="文字起こし履歴">
       <li v-for="item in historyItems" :key="item.id" class="history-list-item">
-        <button
+        <div
           v-if="item.status === 'completed'"
-          type="button"
           class="history-item history-item-completed"
           :class="{ 'history-item-copied': copiedHistoryItemId === item.id }"
-          @click="handleCompletedItemClick(item)"
         >
-          <time class="history-time" :datetime="item.completedAt">
-            {{ formatCompletedAt(item.completedAt) }}
-          </time>
-          <span class="history-preview">{{ item.preview }}</span>
-          <span
-            class="history-copy-feedback"
-            :class="{ 'history-copy-feedback-visible': copiedHistoryItemId === item.id }"
-            aria-live="polite"
-          >
-            {{ COPIED_HISTORY_TEXT }}
-          </span>
-        </button>
+          <button type="button" class="history-copy-button" @click="handleCompletedItemClick(item)">
+            <time class="history-time" :datetime="item.completedAt">
+              {{ formatCompletedAt(item.completedAt) }}
+            </time>
+            <span class="history-preview">{{ item.preview }}</span>
+            <span
+              class="history-copy-feedback"
+              :class="{ 'history-copy-feedback-visible': copiedHistoryItemId === item.id }"
+              aria-live="polite"
+            >
+              {{ COPIED_HISTORY_TEXT }}
+            </span>
+          </button>
+          <div class="history-actions">
+            <button
+              v-if="item.audioAvailable"
+              type="button"
+              class="history-action-button"
+              @click="handleRevealClick(item)"
+            >
+              保存場所を開く
+            </button>
+            <span v-else class="history-audio-message">音声ファイルが見つかりません</span>
+          </div>
+        </div>
 
         <div v-else class="history-item history-item-failed">
           <time class="history-time" :datetime="item.completedAt">
             {{ formatCompletedAt(item.completedAt) }}
           </time>
           <span class="history-preview">{{ FAILED_HISTORY_TEXT }}</span>
+          <span v-if="item.retrying" class="history-retrying" role="status">再認識中</span>
+          <div class="history-actions">
+            <button
+              type="button"
+              class="history-action-button"
+              :disabled="!item.audioAvailable || item.retrying"
+              @click="handleRetryClick(item)"
+            >
+              再認識
+            </button>
+            <button
+              v-if="item.audioAvailable"
+              type="button"
+              class="history-action-button"
+              @click="handleRevealClick(item)"
+            >
+              保存場所を開く
+            </button>
+            <span v-else class="history-audio-message">
+              {{
+                item.audioPath == null
+                  ? '再認識できる音声がありません'
+                  : '音声ファイルが見つかりません'
+              }}
+            </span>
+          </div>
         </div>
+        <span v-if="actionError?.id === item.id" class="history-action-error" role="alert">
+          {{ actionError.message }}
+        </span>
       </li>
     </ul>
   </main>
@@ -307,20 +385,92 @@ onUnmounted(() => {
 }
 
 .history-item-completed {
-  cursor: pointer;
+  padding: 0;
 }
 
-.history-item-completed:hover {
+.history-item-completed:has(.history-copy-button:hover) {
   background: #eaf1fe;
 }
 
-.history-item-completed.history-item-copied:hover {
+.history-item-completed.history-item-copied:has(.history-copy-button:hover) {
   background: #eaf1fe;
 }
 
-.history-item-completed:focus-visible {
+.history-item-completed:has(.history-copy-button:focus-visible) {
   outline: 2px solid #3363a8;
   outline-offset: -2px;
+}
+
+.history-copy-button {
+  display: block;
+  width: 100%;
+  padding: 10px 12px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.history-copy-button:focus-visible {
+  outline: none;
+}
+
+.history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 7px;
+}
+
+.history-item-completed .history-actions {
+  padding: 0 12px 11px;
+}
+
+.history-action-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #3363a8;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.history-action-button:disabled {
+  color: #a39a8c;
+  cursor: default;
+}
+
+.history-action-button:focus-visible {
+  outline: 2px solid #3363a8;
+  outline-offset: 2px;
+}
+
+.history-audio-message,
+.history-retrying,
+.history-action-error {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.history-audio-message {
+  color: #8a8175;
+}
+
+.history-retrying {
+  margin-top: 7px;
+  color: #3363a8;
+}
+
+.history-action-error {
+  padding: 0 12px 8px;
+  color: #b3392a;
 }
 
 .history-item-failed {
@@ -449,12 +599,12 @@ onUnmounted(() => {
   }
 
   .history-item-copied,
-  .history-item-completed:hover,
-  .history-item-completed.history-item-copied:hover {
+  .history-item-completed:has(.history-copy-button:hover),
+  .history-item-completed.history-item-copied:has(.history-copy-button:hover) {
     background: #2b405f;
   }
 
-  .history-item-completed:focus-visible {
+  .history-item-completed:has(.history-copy-button:focus-visible) {
     outline-color: #9bbcf6;
   }
 
@@ -490,6 +640,20 @@ onUnmounted(() => {
 
   .history-copy-feedback::before {
     background: #4b6fae;
+  }
+
+  .history-action-button,
+  .history-retrying {
+    color: #9bbcf6;
+  }
+
+  .history-action-button:disabled,
+  .history-audio-message {
+    color: #b6aaa0;
+  }
+
+  .history-action-error {
+    color: #ff9e8c;
   }
 }
 </style>

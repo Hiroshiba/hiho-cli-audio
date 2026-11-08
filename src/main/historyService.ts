@@ -1,8 +1,8 @@
 import { promises as fs } from 'node:fs'
-import { app, clipboard, ipcMain } from 'electron'
+import { app, clipboard, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 import { z } from 'zod'
-import type { HistoryItem } from '../shared/types/history'
+import type { HistoryItem, HistoryListItem } from '../shared/types/history'
 import { writeFileAtomic } from './atomicFile'
 import { ConfigService } from './configService'
 import { LoggerService } from './loggerService'
@@ -44,6 +44,7 @@ interface CompletedHistoryItemInput {
   completedAt: string
   transcript: string
   audioPath: string
+  sourceWebmPath: string | null
 }
 
 interface FailedHistoryItemInput {
@@ -51,6 +52,7 @@ interface FailedHistoryItemInput {
   createdAt: string
   completedAt: string
   audioPath: string | null
+  sourceWebmPath: string | null
 }
 
 /** 文字起こし履歴サービス */
@@ -60,6 +62,7 @@ export class HistoryService {
   private readonly historyFilePath: string
   private readonly loggerService: LoggerService
   private readonly writeQueue = new PendingWriteQueue()
+  private readonly retryAudioPaths = new Map<string, string>()
 
   private constructor(userDataPath: string) {
     this.configService = ConfigService.getInstance()
@@ -89,7 +92,9 @@ export class HistoryService {
       audioPath: input.audioPath
     }
 
-    return await this.writeQueue.enqueue(async () => await this.appendItem(item))
+    return await this.writeQueue.enqueue(
+      async () => await this.appendItem(item, input.sourceWebmPath)
+    )
   }
 
   /** 失敗した文字起こしを履歴に記録 */
@@ -104,14 +109,85 @@ export class HistoryService {
       audioPath: input.audioPath
     }
 
-    return await this.writeQueue.enqueue(async () => await this.appendItem(item))
+    return await this.writeQueue.enqueue(
+      async () => await this.appendItem(item, input.sourceWebmPath)
+    )
   }
 
   /** 履歴一覧を取得 */
-  async listItems(): Promise<readonly HistoryItem[]> {
+  async listItems(): Promise<readonly HistoryListItem[]> {
     await this.writeQueue.waitForWrites()
     const historyFile = await this.loadHistoryFile()
-    return this.sortNewestFirst(historyFile.items)
+    return await Promise.all(
+      this.sortNewestFirst(historyFile.items).map(async (item) => ({
+        ...item,
+        audioAvailable: item.audioPath == null ? false : await this.audioExists(item.audioPath),
+        retrying: this.retryAudioPaths.has(item.id)
+      }))
+    )
+  }
+
+  /** 再認識する失敗履歴の音声を保護する */
+  async beginRetry(itemId: string): Promise<HistoryItem> {
+    const result = await this.writeQueue.enqueue<
+      { success: true; item: HistoryItem } | { success: false; error: unknown }
+    >(async () => {
+      try {
+        if (this.retryAudioPaths.has(itemId)) {
+          throw new Error(`履歴項目は既に再認識中です: ${itemId}`)
+        }
+
+        const historyFile = await this.loadHistoryFile()
+        const item = historyFile.items.find((candidate) => candidate.id === itemId)
+        if (item == null || item.status !== 'failed' || item.audioPath == null) {
+          throw new Error(`再認識できる履歴項目が見つかりません: ${itemId}`)
+        }
+        if (!(await this.audioExists(item.audioPath))) {
+          throw new Error(`音声ファイルが見つかりません: ${itemId}`)
+        }
+
+        this.retryAudioPaths.set(itemId, item.audioPath)
+        this.notifyHistoryUpdated()
+        return { success: true, item }
+      } catch (error) {
+        return { success: false, error }
+      }
+    })
+    if (!result.success) {
+      throw result.error
+    }
+    return result.item
+  }
+
+  /** 再認識が終わった音声の保護を解除する */
+  async finishRetry(itemId: string, generatedWavPath: string | null): Promise<void> {
+    await this.writeQueue.enqueue(async () => {
+      const audioPath = this.retryAudioPaths.get(itemId)
+      if (audioPath == null) {
+        throw new Error(`再認識中の履歴項目が見つかりません: ${itemId}`)
+      }
+
+      const historyFile = await this.loadHistoryFile()
+      this.retryAudioPaths.delete(itemId)
+      await this.removeUnreferencedAudioFiles(
+        generatedWavPath == null ? [audioPath] : [audioPath, generatedWavPath],
+        historyFile.items
+      )
+      this.notifyHistoryUpdated()
+    })
+  }
+
+  /** 履歴に紐づく音声ファイルをファイラーで表示する */
+  async revealAudio(itemId: string): Promise<boolean> {
+    await this.writeQueue.waitForWrites()
+    const historyFile = await this.loadHistoryFile()
+    const item = historyFile.items.find((candidate) => candidate.id === itemId)
+    if (item?.audioPath == null || !(await this.audioExists(item.audioPath))) {
+      return false
+    }
+
+    shell.showItemInFolder(item.audioPath)
+    return true
   }
 
   /** 成功履歴の本文をクリップボードへコピー */
@@ -135,6 +211,7 @@ export class HistoryService {
   cleanup(): void {
     ipcMain.removeHandler('history:list')
     ipcMain.removeHandler('history:copy')
+    ipcMain.removeHandler('history:reveal')
   }
 
   /** 保留中の履歴保存を待つ */
@@ -145,9 +222,10 @@ export class HistoryService {
   private setupIpcHandlers(): void {
     ipcMain.handle('history:list', this.handleListHistory.bind(this))
     ipcMain.handle('history:copy', this.handleCopyHistoryItem.bind(this))
+    ipcMain.handle('history:reveal', this.handleRevealHistoryItem.bind(this))
   }
 
-  private async handleListHistory(): Promise<readonly HistoryItem[]> {
+  private async handleListHistory(): Promise<readonly HistoryListItem[]> {
     return await this.listItems()
   }
 
@@ -159,16 +237,37 @@ export class HistoryService {
     return await this.copyTranscript(validatedItemId)
   }
 
-  private async appendItem(item: HistoryItem): Promise<HistoryItem> {
+  private async handleRevealHistoryItem(
+    _event: Electron.IpcMainInvokeEvent,
+    itemId: unknown
+  ): Promise<boolean> {
+    const validatedItemId = z.string().min(1).parse(itemId)
+    return await this.revealAudio(validatedItemId)
+  }
+
+  private async appendItem(item: HistoryItem, sourceWebmPath: string | null): Promise<HistoryItem> {
     const config = this.configService.getConfig()
     const historyFile = await this.loadHistoryFile()
-    const sortedItems = this.sortNewestFirst([...historyFile.items, item])
+    const previousItem = historyFile.items.find((candidate) => candidate.id === item.id)
+    const sortedItems = this.sortNewestFirst([
+      ...historyFile.items.filter((candidate) => candidate.id !== item.id),
+      item
+    ])
     const retainedItems = sortedItems.slice(0, config.history.maxItems)
     const removedItems = sortedItems.slice(config.history.maxItems)
 
     await this.saveHistoryFile({ items: retainedItems })
     this.notifyHistoryUpdated()
-    await this.removeAudioFiles(removedItems)
+    const obsoletePaths = removedItems.flatMap((removedItem) =>
+      removedItem.audioPath == null ? [] : [removedItem.audioPath]
+    )
+    if (previousItem?.audioPath != null && previousItem.audioPath !== item.audioPath) {
+      obsoletePaths.push(previousItem.audioPath)
+    }
+    if (sourceWebmPath != null && sourceWebmPath !== item.audioPath) {
+      obsoletePaths.push(sourceWebmPath)
+    }
+    await this.removeUnreferencedAudioFiles(obsoletePaths, retainedItems)
 
     this.loggerService.infoWithDetails('履歴項目を保存しました', {
       historyId: item.id,
@@ -200,28 +299,43 @@ export class HistoryService {
     await writeFileAtomic(this.historyFilePath, JSON.stringify(validatedHistoryFile, null, 2))
   }
 
-  private async removeAudioFiles(items: readonly HistoryItem[]): Promise<void> {
-    for (const item of items) {
-      if (item.audioPath == null) {
+  private async removeUnreferencedAudioFiles(
+    paths: readonly string[],
+    retainedItems: readonly HistoryItem[]
+  ): Promise<void> {
+    for (const audioPath of new Set(paths)) {
+      if (
+        retainedItems.some((item) => item.audioPath === audioPath) ||
+        [...this.retryAudioPaths.values()].includes(audioPath)
+      ) {
         continue
       }
 
       try {
-        await fs.unlink(item.audioPath)
+        await fs.unlink(audioPath)
       } catch (error) {
         if (hasErrorCode(error, 'ENOENT')) {
           continue
         }
 
-        this.loggerService.error('履歴上限超過に伴う音声ログ削除に失敗しました', {
-          historyId: item.id,
-          audioPath: item.audioPath,
+        this.loggerService.error('参照されなくなった音声ログの削除に失敗しました', {
+          audioPath,
           error
         })
-        throw new Error(`履歴上限超過に伴う音声ログ削除に失敗しました: ${item.audioPath}`, {
-          cause: error
-        })
       }
+    }
+  }
+
+  private async audioExists(audioPath: string): Promise<boolean> {
+    try {
+      await fs.access(audioPath)
+      return true
+    } catch (error) {
+      if (hasErrorCode(error, 'ENOENT')) {
+        return false
+      }
+
+      throw error
     }
   }
 

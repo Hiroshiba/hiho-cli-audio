@@ -12,6 +12,7 @@ export type StatusWindowState =
       recordingStartedAt: string
       processingJobCount: number
       target: RecordingTargetSummary
+      inputWarning: boolean
     }
   | { kind: 'transcribing'; processingJobCount: number }
   | { kind: 'completed'; message: string; processingJobCount: number }

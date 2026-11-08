@@ -154,6 +154,14 @@ export interface ProcessedAudioData {
   id: string
   /** WAVファイルの保存パス */
   wavFilePath: string
+  /** 履歴保存後に削除する元WebMのパス */
+  sourceWebmPath: string | null
+}
+
+/** 保存済み音声へ変換できなかった結果 */
+export interface AudioProcessingFailure {
+  message: string
+  savedWebmPath: string | null
 }
 
 /** Result型 */
