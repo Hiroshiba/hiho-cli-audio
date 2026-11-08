@@ -57,7 +57,10 @@ export class UpdateService {
 
     this.isStarted = true
     const { isPackaged, platform, architecture, updater, loggerService } = this.dependencies
-    if (!isPackaged || architecture !== 'x64' || (platform !== 'win32' && platform !== 'darwin')) {
+    const supportsUpdates =
+      (platform === 'win32' && architecture === 'x64') ||
+      (platform === 'darwin' && architecture === 'arm64')
+    if (!isPackaged || !supportsUpdates) {
       loggerService.info('自動更新の対象外のため確認を開始しません')
       return
     }
