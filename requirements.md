@@ -212,7 +212,7 @@
 
 #### 15. 署名済み配布と自動更新
 
-- Windows x64の通常NSISとmacOS x64のZIPを署名し、GitHub Releasesへ公開する。WindowsのWebインストーラーは初回導入に使えるが、自動更新には使用しない。
+- Windows x64の通常NSISとmacOS arm64のDMGを初回導入用、ZIPを自動更新用として署名し、GitHub Releasesへ公開する。WindowsのWebインストーラーは初回導入に使えるが、自動更新には使用しない。
 - パッケージ版は公開されたLatest Releaseを起動時と1時間ごとに確認し、更新があれば自動でダウンロードする。開発実行では更新を確認しない。
 - ダウンロード完了後だけ常駐メニューへ「更新して再起動」を表示する。録音または文字起こし中に選択した場合は完了まで待ち、利用者の操作なしには再起動しない。
 - 通常終了時にダウンロード済み更新を自動適用しない。取得や検証に失敗した場合は現行版を継続し、内部ログへ残して次回も確認する。
@@ -526,7 +526,7 @@ type HistoryItem = {
 - Electronおよびビルドツールの標準サポート範囲で、最新のWindows・macOSで動くことを目標にする。
 - 古いOS向けの追加実装は行わない。
 - macOSとWindowsの配布成果物を中央の署名ワークフローで自己署名する。Appleの公証は行わない。
-- Windows x64の通常NSISとWebインストーラー、macOS x64のZIPをGitHub Releasesへ公開する。自動更新には通常NSISとZIPだけを使用する。
+- Windows x64の通常NSISとWebインストーラー、macOS arm64のDMGとZIPをGitHub Releasesへ公開する。自動更新には通常NSISとZIPだけを使用する。
 - 公開されたLatest Releaseを更新先とし、成果物とmetadataの検証が終わるまでReleaseをdraftに保つ。
 - OSのコード署名検証とmetadataのSHA-512照合は別の保証として維持する。
 

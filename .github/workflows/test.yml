@@ -45,6 +45,9 @@ jobs:
       - name: <Test> 録音入力・音声履歴・再認識
         run: pnpm run test:audio
 
+      - name: <Test> 自動更新
+        run: pnpm run test:update
+
       - name: <Test> アプリケーションのビルド
         run: pnpm run build
 

@@ -49,7 +49,8 @@ function createService(
   updater: FakeUpdater,
   isPackaged: boolean,
   canRestart: () => boolean,
-  platform: NodeJS.Platform
+  platform: NodeJS.Platform,
+  architecture: string
 ): {
   service: UpdateService
   tray: { action: (() => void) | null; isWaiting: boolean }
@@ -80,7 +81,7 @@ function createService(
     },
     isPackaged,
     platform,
-    architecture: 'x64',
+    architecture,
     canRestart,
     prepareForRestart: async () => {
       preparation.count += 1
@@ -107,7 +108,7 @@ function clickRestart(tray: { action: (() => void) | null }): void {
 
 test('開発実行では更新確認を開始しない', () => {
   const updater = new FakeUpdater()
-  const { service, tray } = createService(updater, false, () => true, 'win32')
+  const { service, tray } = createService(updater, false, () => true, 'win32', 'x64')
   service.start()
 
   assert.equal(updater.checkCount, 0)
@@ -116,9 +117,32 @@ test('開発実行では更新確認を開始しない', () => {
   service.cleanup()
 })
 
+for (const { label, platform, architecture, expectedChecks } of [
+  { label: 'Windows x64', platform: 'win32', architecture: 'x64', expectedChecks: 1 },
+  { label: 'macOS arm64', platform: 'darwin', architecture: 'arm64', expectedChecks: 1 },
+  { label: 'Windows arm64', platform: 'win32', architecture: 'arm64', expectedChecks: 0 },
+  { label: 'macOS x64', platform: 'darwin', architecture: 'x64', expectedChecks: 0 },
+  { label: 'Linux x64', platform: 'linux', architecture: 'x64', expectedChecks: 0 }
+] satisfies {
+  label: string
+  platform: NodeJS.Platform
+  architecture: string
+  expectedChecks: 0 | 1
+}[]) {
+  test(`${label}の更新対象判定`, () => {
+    const updater = new FakeUpdater()
+    const { service } = createService(updater, true, () => true, platform, architecture)
+    service.start()
+
+    assert.equal(updater.checkCount, expectedChecks)
+    assert.equal(updater.feedURL != null, expectedChecks === 1)
+    service.cleanup()
+  })
+}
+
 test('ダウンロード完了後だけ再起動操作を出し、明示操作で適用する', async () => {
   const updater = new FakeUpdater()
-  const { service, tray, preparation } = createService(updater, true, () => true, 'win32')
+  const { service, tray, preparation } = createService(updater, true, () => true, 'win32', 'x64')
   service.start()
   await setImmediate()
 
@@ -147,7 +171,7 @@ test('処理中は再起動を待ち、完了後に適用する', async (context
   context.mock.timers.enable({ apis: ['setInterval'] })
   const updater = new FakeUpdater()
   let canRestart = false
-  const { service, tray } = createService(updater, true, () => canRestart, 'win32')
+  const { service, tray } = createService(updater, true, () => canRestart, 'win32', 'x64')
   service.start()
   await setImmediate()
   updater.emit('update-downloaded')
@@ -166,7 +190,13 @@ test('macOS の適用エラーイベント後は導線を消し、次回確認�
   context.mock.timers.enable({ apis: ['setInterval'] })
   const updater = new FakeUpdater()
   const error = new Error('更新の適用に失敗しました')
-  const { service, tray, preparation, errors } = createService(updater, true, () => true, 'darwin')
+  const { service, tray, preparation, errors } = createService(
+    updater,
+    true,
+    () => true,
+    'darwin',
+    'arm64'
+  )
   service.start()
   await setImmediate()
   updater.emit('update-downloaded')
@@ -207,7 +237,13 @@ test('適用が Promise だけで失敗しても導線を消し、拒否を処�
   const updater = new FakeUpdater()
   const error = new Error('適用時の非同期エラー')
   updater.installFailure = { kind: 'promise', error }
-  const { service, tray, preparation, errors } = createService(updater, true, () => true, 'darwin')
+  const { service, tray, preparation, errors } = createService(
+    updater,
+    true,
+    () => true,
+    'darwin',
+    'arm64'
+  )
   service.start()
   await setImmediate()
   updater.emit('update-downloaded')
@@ -224,7 +260,13 @@ test('同じ適用失敗がイベントと Promise で届いても一度だけ�
   const updater = new FakeUpdater()
   const error = new Error('適用時の二重通知')
   updater.installFailure = { kind: 'both', error }
-  const { service, tray, preparation, errors } = createService(updater, true, () => true, 'darwin')
+  const { service, tray, preparation, errors } = createService(
+    updater,
+    true,
+    () => true,
+    'darwin',
+    'arm64'
+  )
   service.start()
   await setImmediate()
   updater.emit('update-downloaded')
@@ -239,7 +281,13 @@ test('同じ適用失敗がイベントと Promise で届いても一度だけ�
 
 test('保存準備の失敗では適用せず、保存回復後に再操作できる', async () => {
   const updater = new FakeUpdater()
-  const { service, tray, preparation, errors } = createService(updater, true, () => true, 'win32')
+  const { service, tray, preparation, errors } = createService(
+    updater,
+    true,
+    () => true,
+    'win32',
+    'x64'
+  )
   service.start()
   await setImmediate()
   updater.emit('update-downloaded')
@@ -266,7 +314,7 @@ test('更新確認の失敗は一度だけ記録して次回確認を残す', as
   context.mock.timers.enable({ apis: ['setInterval'] })
   const updater = new FakeUpdater()
   updater.checkError = new Error('更新 metadata を取得できません')
-  const { service, tray, errors } = createService(updater, true, () => true, 'win32')
+  const { service, tray, errors } = createService(updater, true, () => true, 'win32', 'x64')
   service.start()
   await setImmediate()
 
@@ -286,7 +334,7 @@ test('ハッシュ不一致では適用導線を出さず再確認を止める',
   updater.checkError = Object.assign(new Error('ハッシュ不一致'), {
     code: 'ERR_CHECKSUM_MISMATCH'
   })
-  const { service, tray, errors } = createService(updater, true, () => true, 'darwin')
+  const { service, tray, errors } = createService(updater, true, () => true, 'darwin', 'arm64')
   service.start()
   await setImmediate()
 
@@ -306,7 +354,13 @@ test('署名不一致の適用エラーでは導線を消し再確認を止め�
   const error = Object.assign(new Error('署名不一致'), {
     code: 'ERR_UPDATER_INVALID_SIGNATURE'
   })
-  const { service, tray, preparation, errors } = createService(updater, true, () => true, 'darwin')
+  const { service, tray, preparation, errors } = createService(
+    updater,
+    true,
+    () => true,
+    'darwin',
+    'arm64'
+  )
   service.start()
   await setImmediate()
   updater.emit('update-downloaded')

@@ -8,12 +8,12 @@
 
 - Windowsの通常インストーラー: `hiho-cli-audio-<version>-windows-x64-setup.exe`
 - WindowsのWebインストーラー: `hiho-cli-audio-<version>-windows-x64-web-setup.exe`
-- macOSの初回導入用: `hiho-cli-audio-<version>-macos-x64.dmg`
-- macOSの自動更新用: `hiho-cli-audio-<version>-macos-x64.zip`
+- macOSの初回導入用: `hiho-cli-audio-<version>-macos-arm64.dmg`
+- macOSの自動更新用: `hiho-cli-audio-<version>-macos-arm64.zip`
 
-Windowsではいずれかのインストーラーを実行します。Webインストーラーはインストール時にアプリ本体をダウンロードするため、インターネット接続が必要です。macOSではDMGを開き、hiho-cli-audioをアプリケーションフォルダへ移します。ZIPはパッケージ版の自動更新に使用します。
+Windowsではいずれかのインストーラーを実行します。Webインストーラーはインストール時にアプリ本体をダウンロードするため、インターネット接続が必要です。macOSの配布対象はApple Silicon搭載Macです。DMGを開き、hiho-cli-audioをアプリケーションフォルダへ移します。ZIPはパッケージ版の自動更新に使用します。
 
-初回導入前に[中央の端末設定手順](https://github.com/Hiroshiba/oreore-codesigner/blob/d57216c729e04e9a26c32de886f2dd197da832f9/docs/device-setup.md)に従い、配布元と公開証明書を確認してください。自己署名はAppleの公証の代替ではなく、macOSのGatekeeperやWindowsのSmartScreenによる警告は残り得ます。OS全体の保護設定は無効にしないでください。
+初回導入前に[中央の端末設定手順](https://github.com/Hiroshiba/oreore-codesigner/blob/main/docs/device-setup.md)に従い、配布元と公開証明書を確認してください。自己署名はAppleの公証の代替ではなく、macOSのGatekeeperやWindowsのSmartScreenによる警告は残り得ます。OS全体の保護設定は無効にしないでください。
 
 従来の未署名`edge`版から最初の署名済み版へ移るときは、署名済み版を手動で再インストールしてください。以後、署名済みのパッケージ版は公開されたLatest Releaseを起動時と1時間ごとに確認し、更新を自動でダウンロードします。ダウンロードが完了すると常駐メニューに「更新して再起動」が現れます。選択時に録音や文字起こしが進行中なら、その完了後に再起動します。終了時の自動適用や、操作なしの再起動は行いません。更新に失敗した場合は現行版を使い続けます。Webインストーラーは自動更新に使用しません。
 
@@ -157,7 +157,7 @@ pnpm typecheck
 pnpm build
 ```
 
-OS別の配布物を作成する場合は、次のコマンドを使用します。
+OS別のローカルビルドを確認する場合は、次のコマンドを使用します。
 
 ```bash
 pnpm build:win
@@ -166,11 +166,11 @@ pnpm build:mac
 
 macOSで録音するアプリ本体とHelperには、`build/entitlements.mac.plist`のAudio Input entitlementを付与します。実行時に使わない`docs`は、署名検証時のファイル名正規化の不一致を避けるためパッケージに含めません。
 
-Windowsのローカルビルドは通常NSISだけを作成します。ローカルビルドは配布用の署名済み成果物ではありません。
+macOSのローカルビルドでは、依存関係の導入とビルドを同じCPUの端末で行います。配布用のarm64版は中央のARM runnerで依存関係の導入から行います。Windowsのローカルビルドは通常NSISだけを作成します。ローカルビルドは配布用の署名済み成果物ではありません。
 
 公開するバージョンは`package.json`のSemVerで指定し、`pnpm-lock.yaml`との整合を確認してください。版変更を`main`へ反映し、そのコミットにタグを付けてください。`main`の更新ではReleaseを自動公開しません。
 
-署名済み成果物の作成・公開と更新の検証は、中央の[初期設定](https://github.com/Hiroshiba/oreore-codesigner/blob/d57216c729e04e9a26c32de886f2dd197da832f9/docs/github-setup.md)と[運用手順](https://github.com/Hiroshiba/oreore-codesigner/blob/d57216c729e04e9a26c32de886f2dd197da832f9/docs/operations.md)に従ってください。
+署名済み成果物の作成・公開と更新の検証は、中央の[初期設定](https://github.com/Hiroshiba/oreore-codesigner/blob/main/docs/github-setup.md)と[運用手順](https://github.com/Hiroshiba/oreore-codesigner/blob/main/docs/operations.md)に従ってください。
 
 詳しい仕様は[要件定義書](docs/要件定義書.md)を参照してください。
 
